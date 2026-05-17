@@ -76,6 +76,41 @@ function isLocked(state) {
   return Date.now() >= new Date(state.lockAt).getTime();
 }
 
+function cleanDisplayName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function normalizeName(value) {
+  return cleanDisplayName(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("es");
+}
+
+function validateFullName(value) {
+  const fullName = cleanDisplayName(value);
+  const parts = fullName.split(" ").filter(Boolean);
+  const validNamePart = /^\p{L}+(?:['-]\p{L}+)*$/u;
+
+  if (parts.length < 2) {
+    return { valid: false, error: "Ingresa nombre y apellido." };
+  }
+
+  if (!parts.every((part) => validNamePart.test(part))) {
+    return { valid: false, error: "El nombre solo puede tener letras, espacios, guiones o apostrofes." };
+  }
+
+  return {
+    valid: true,
+    fullName,
+    normalizedName: normalizeName(fullName),
+  };
+}
+
+function participantNameKey(participant) {
+  return participant.normalizedName || normalizeName(participant.fullName);
+}
+
 function requireAdmin(url) {
   return url.searchParams.get("key") === ADMIN_KEY;
 }
@@ -171,17 +206,34 @@ async function api(req, res, url) {
     }
     const body = await readBody(req);
     const deviceId = String(body.deviceId || "").trim();
-    const fullName = String(body.fullName || "").trim();
-    if (!deviceId || !fullName) {
-      return send(res, 400, { error: "Falta nombre y apellido." });
+    const nameValidation = validateFullName(body.fullName);
+    if (!deviceId || !nameValidation.valid) {
+      return send(res, 400, { error: nameValidation.error || "Falta nombre y apellido." });
     }
 
     let participant = state.participants.find((item) => item.deviceId === deviceId);
+    if (participant) {
+      return send(res, 200, { participant });
+    }
+
+    const duplicate = state.participants.find(
+      (item) => participantNameKey(item) === nameValidation.normalizedName,
+    );
+    if (duplicate) {
+      return send(res, 409, { error: "Ese nombre ya esta registrado." });
+    }
+
+    const fullName = nameValidation.fullName;
+    if (!fullName) {
+      return send(res, 400, { error: "Falta nombre y apellido." });
+    }
+
     if (!participant) {
       participant = {
         id: newId("p"),
         deviceId,
         fullName,
+        normalizedName: nameValidation.normalizedName,
         createdAt: new Date().toISOString(),
         submittedAt: null,
       };

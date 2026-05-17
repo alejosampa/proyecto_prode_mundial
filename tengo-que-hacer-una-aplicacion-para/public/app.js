@@ -33,6 +33,26 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function cleanDisplayName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function validateFullName(value) {
+  const fullName = cleanDisplayName(value);
+  const parts = fullName.split(" ").filter(Boolean);
+  const validNamePart = /^\p{L}+(?:['-]\p{L}+)*$/u;
+
+  if (parts.length < 2) {
+    return { valid: false, error: "Ingresa nombre y apellido." };
+  }
+
+  if (!parts.every((part) => validNamePart.test(part))) {
+    return { valid: false, error: "El nombre solo puede tener letras, espacios, guiones o apostrofes." };
+  }
+
+  return { valid: true, fullName };
+}
+
 function formatDate(value) {
   return new Intl.DateTimeFormat("es-AR", {
     weekday: "short",
@@ -118,7 +138,7 @@ function renderRegister() {
         <form id="register-form">
           <div class="field">
             <label for="fullName">Nombre y apellido</label>
-            <input id="fullName" name="fullName" autocomplete="name" required maxlength="80" />
+            <input id="fullName" name="fullName" autocomplete="name" autocapitalize="words" required maxlength="80" />
           </div>
           <button class="btn" type="submit" ${bootstrap.locked ? "disabled" : ""}>Entrar</button>
         </form>
@@ -129,11 +149,15 @@ function renderRegister() {
 
   document.querySelector("#register-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const fullName = new FormData(event.currentTarget).get("fullName");
+    const nameValidation = validateFullName(new FormData(event.currentTarget).get("fullName"));
+    if (!nameValidation.valid) {
+      showToast(nameValidation.error, "error");
+      return;
+    }
     await withButton(event.submitter, async () => {
       const result = await api("/api/register", {
         method: "POST",
-        body: JSON.stringify({ deviceId: getDeviceId(), fullName }),
+        body: JSON.stringify({ deviceId: getDeviceId(), fullName: nameValidation.fullName }),
       });
       bootstrap.participant = result.participant;
       renderPredictionForm();
