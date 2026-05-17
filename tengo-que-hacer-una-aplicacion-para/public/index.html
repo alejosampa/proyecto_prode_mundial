@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prode Mundial 2026</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Fase de grupos</p>
+        <h1>Prode Mundial 2026</h1>
+      </div>
+      <nav class="nav" aria-label="Secciones">
+        <a href="/" data-nav="home">Mi prode</a>
+        <a href="/tabla" data-nav="tabla">Tabla</a>
+        <a href="/admin" data-nav="admin">Admin</a>
+      </nav>
+    </header>
+
+    <main id="app" class="shell" aria-live="polite">
+      <section class="loading">
+        <div class="spinner"></div>
+        <p>Cargando prode...</p>
+      </section>
+    </main>
+
+    <template id="match-row-template">
+      <article class="match-row">
+        <div class="match-meta"></div>
+        <div class="match-teams"></div>
+      </article>
+    </template>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

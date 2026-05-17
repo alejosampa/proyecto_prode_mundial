@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "lockAt": "2026-06-11T17:00:00-03:00",
+  "participants": [
+    {
+      "id": "p_77509f783eab0d57adc7",
+      "deviceId": "device_1779034771490-a001f17cd3e6c8",
+      "fullName": "Adrian sampaulise",
+      "createdAt": "2026-05-17T16:19:41.292Z",
+      "submittedAt": "2026-05-17T16:21:25.788Z"
+    },
+    {
+      "id": "p_f3475ba9d98188864b4d",
+      "deviceId": "device_a24cf89b-68ad-4218-b90d-0151fb5e0c9a",
+      "fullName": "Alejo Sampaulise",
+      "createdAt": "2026-05-17T16:21:12.179Z",
+      "submittedAt": "2026-05-17T16:21:29.532Z"
+    },
+    {
+      "id": "p_b85bb7f47da5878b8ec1",
+      "deviceId": "device_1779034572257-eeae537e0b6868",
+      "fullName": "Julieta sampaulise",
+      "createdAt": "2026-05-17T16:40:41.976Z",
+      "submittedAt": null
+    },
+    {
+      "id": "p_af3d64fa165f7354750a",
+      "deviceId": "device_1779038470060-cdebe97a6e5b6",
+      "fullName": "Julieta Sampaulise",
+      "createdAt": "2026-05-17T17:21:55.349Z",
+      "submittedAt": null
+    }
+  ],
+  "predictions": [],
+  "results": {}
+}
