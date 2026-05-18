@@ -6,7 +6,8 @@
   "description": "Prode para la fase de grupos del Mundial 2026",
   "scripts": {
     "dev": "node server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "seed:supabase": "node scripts/seed-supabase.js"
   },
   "engines": {
     "node": ">=18"

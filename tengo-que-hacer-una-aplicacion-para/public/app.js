@@ -488,7 +488,7 @@ async function renderAdmin() {
         <div class="section-head">
           <div>
             <h2>Cargar resultados</h2>
-            <p>${adminState.participants.length} participantes · ${adminState.predictionCount} predicciones cargadas</p>
+            <p>${adminState.participants.length} participantes · ${adminState.predictionCount} predicciones cargadas · ${adminState.storage}</p>
           </div>
           <a class="btn secondary" href="/api/admin/export.csv?key=${encodeURIComponent(key)}">Exportar CSV</a>
         </div>
@@ -504,10 +504,36 @@ async function renderAdmin() {
           </div>
         </div>
         ${leaderboardTable(adminState.leaderboard, true)}
+        ${adminParticipantsList(adminState.participants)}
       </aside>
     </section>
   `;
   bindAdmin(key);
+}
+
+function adminParticipantsList(participants) {
+  if (!participants.length) {
+    return `<div class="notice">No hay participantes registrados.</div>`;
+  }
+
+  return html`
+    <div class="admin-participants">
+      <h3>Participantes</h3>
+      ${participants
+        .map(
+          (participant) => html`
+            <article class="participant-admin-row">
+              <div>
+                <strong>${escapeHtml(participant.fullName)}</strong>
+                <small>${participant.submittedAt ? "Prode enviado" : "Sin enviar"}</small>
+              </div>
+              <button class="btn danger" type="button" data-delete-participant="${participant.id}">Borrar</button>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 function adminMatchRow(match, result) {
@@ -551,6 +577,24 @@ function bindAdmin(key) {
           body: JSON.stringify({ matchId, clear: true }),
         });
         showToast("Resultado limpiado.", "ok");
+        await renderAdmin();
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-delete-participant]").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      const participantId = event.currentTarget.dataset.deleteParticipant;
+      const confirmed = window.confirm(
+        "Vas a borrar este participante y sus predicciones. Confirmas?",
+      );
+      if (!confirmed) return;
+
+      await withButton(event.currentTarget, async () => {
+        await api(`/api/admin/participants/${encodeURIComponent(participantId)}?key=${encodeURIComponent(key)}`, {
+          method: "DELETE",
+        });
+        showToast("Participante borrado.", "ok");
         await renderAdmin();
       });
     });

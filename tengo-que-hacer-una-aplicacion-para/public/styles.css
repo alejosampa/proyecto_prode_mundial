@@ -428,6 +428,34 @@ th.number {
   gap: 10px;
 }
 
+.admin-participants {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.admin-participants h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.participant-admin-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.participant-admin-row small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+}
+
 .admin-match {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 70px 18px 70px auto;

@@ -8,6 +8,10 @@ const env = globalThis.process?.env || {};
 const PORT = Number(env.PORT || 3000);
 const ADMIN_KEY = env.ADMIN_KEY || "admin-2026";
 const LOCK_AT = env.LOCK_AT || "2026-06-11T17:00:00-03:00";
+const SUPABASE_URL = (env.SUPABASE_URL || "").replace(/\/$/, "");
+const SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || "";
+const USE_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
+
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(ROOT, "public");
 const DATA_DIR = path.join(ROOT, "data");
@@ -45,14 +49,221 @@ async function writeJson(file, data) {
   await fs.writeFile(file, `${JSON.stringify(data, null, 2)}\n`, "utf8");
 }
 
-async function readState() {
+async function readLocalState() {
   await ensureState();
-  return readJson(STATE_FILE);
+  const state = await readJson(STATE_FILE);
+  state.fixtures = await readJson(FIXTURES_FILE);
+  return state;
 }
 
-async function saveState(state) {
-  await writeJson(STATE_FILE, state);
+async function saveLocalState(state) {
+  await writeJson(STATE_FILE, {
+    version: state.version,
+    lockAt: state.lockAt,
+    participants: state.participants,
+    predictions: state.predictions,
+    results: state.results,
+  });
 }
+
+function createHttpError(status, message) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+async function supabaseRequest(resource, options = {}) {
+  if (!USE_SUPABASE) throw createHttpError(500, "Supabase no esta configurado.");
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${resource}`, {
+    method: options.method || "GET",
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: options.prefer || "return=representation",
+      ...(options.headers || {}),
+    },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  });
+
+  const text = await response.text();
+  const body = text ? JSON.parse(text) : null;
+  if (!response.ok) {
+    const message = body?.message || body?.hint || "Error de Supabase";
+    throw createHttpError(response.status, message);
+  }
+  return body;
+}
+
+function eq(value) {
+  return `eq.${encodeURIComponent(value)}`;
+}
+
+function toFixture(row) {
+  return {
+    id: row.id,
+    group: row.group_name,
+    matchday: row.matchday,
+    date: row.match_date,
+    venue: row.venue,
+    home: row.home_team,
+    away: row.away_team,
+  };
+}
+
+function toParticipant(row) {
+  return {
+    id: row.id,
+    deviceId: row.device_id,
+    fullName: row.full_name,
+    normalizedName: row.normalized_name,
+    createdAt: row.created_at,
+    submittedAt: row.submitted_at,
+  };
+}
+
+function toPrediction(row) {
+  return {
+    participantId: row.participant_id,
+    matchId: row.match_id,
+    homeGoals: row.home_goals,
+    awayGoals: row.away_goals,
+  };
+}
+
+function resultsObject(rows) {
+  return rows.reduce((acc, row) => {
+    acc[row.match_id] = {
+      homeGoals: row.home_goals,
+      awayGoals: row.away_goals,
+      updatedAt: row.updated_at,
+    };
+    return acc;
+  }, {});
+}
+
+async function readSupabaseState() {
+  const [fixtureRows, participantRows, predictionRows, resultRows] = await Promise.all([
+    supabaseRequest("fixtures?select=*&order=display_order.asc"),
+    supabaseRequest("participants?select=*&order=created_at.asc"),
+    supabaseRequest("predictions?select=*"),
+    supabaseRequest("results?select=*"),
+  ]);
+
+  return {
+    version: 1,
+    lockAt: LOCK_AT,
+    fixtures: fixtureRows.map(toFixture),
+    participants: participantRows.map(toParticipant),
+    predictions: predictionRows.map(toPrediction),
+    results: resultsObject(resultRows),
+  };
+}
+
+const localStore = {
+  async getState() {
+    return readLocalState();
+  },
+
+  async createParticipant(state, participant) {
+    state.participants.push(participant);
+    await saveLocalState(state);
+    return participant;
+  },
+
+  async submitPredictions(state, participant, predictions) {
+    participant.submittedAt = new Date().toISOString();
+    state.predictions.push(...predictions);
+    await saveLocalState(state);
+    return participant;
+  },
+
+  async setResult(state, matchId, result) {
+    state.results[matchId] = result;
+    await saveLocalState(state);
+  },
+
+  async clearResult(state, matchId) {
+    delete state.results[matchId];
+    await saveLocalState(state);
+  },
+
+  async deleteParticipant(state, participantId) {
+    state.participants = state.participants.filter((item) => item.id !== participantId);
+    state.predictions = state.predictions.filter((item) => item.participantId !== participantId);
+    await saveLocalState(state);
+  },
+};
+
+const supabaseStore = {
+  async getState() {
+    return readSupabaseState();
+  },
+
+  async createParticipant(_state, participant) {
+    const rows = await supabaseRequest("participants", {
+      method: "POST",
+      body: {
+        id: participant.id,
+        device_id: participant.deviceId,
+        full_name: participant.fullName,
+        normalized_name: participant.normalizedName,
+        created_at: participant.createdAt,
+        submitted_at: participant.submittedAt,
+      },
+    });
+    return toParticipant(rows[0]);
+  },
+
+  async submitPredictions(state, participant, predictions) {
+    const submittedAt = new Date().toISOString();
+    await supabaseRequest("predictions", {
+      method: "POST",
+      body: predictions.map((prediction) => ({
+        participant_id: prediction.participantId,
+        match_id: prediction.matchId,
+        home_goals: prediction.homeGoals,
+        away_goals: prediction.awayGoals,
+      })),
+    });
+    const rows = await supabaseRequest(`participants?id=${eq(participant.id)}`, {
+      method: "PATCH",
+      body: { submitted_at: submittedAt },
+    });
+    participant.submittedAt = submittedAt;
+    state.predictions.push(...predictions);
+    return rows[0] ? toParticipant(rows[0]) : participant;
+  },
+
+  async setResult(_state, matchId, result) {
+    await supabaseRequest("results", {
+      method: "POST",
+      prefer: "resolution=merge-duplicates,return=representation",
+      body: {
+        match_id: matchId,
+        home_goals: result.homeGoals,
+        away_goals: result.awayGoals,
+        updated_at: result.updatedAt,
+      },
+    });
+  },
+
+  async clearResult(_state, matchId) {
+    await supabaseRequest(`results?match_id=${eq(matchId)}`, {
+      method: "DELETE",
+      prefer: "return=minimal",
+    });
+  },
+
+  async deleteParticipant(_state, participantId) {
+    await supabaseRequest(`participants?id=${eq(participantId)}`, {
+      method: "DELETE",
+      prefer: "return=minimal",
+    });
+  },
+};
+
+const store = USE_SUPABASE ? supabaseStore : localStore;
 
 async function readBody(req) {
   const chunks = [];
@@ -61,9 +272,7 @@ async function readBody(req) {
   try {
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
   } catch {
-    const error = new Error("JSON invalido");
-    error.status = 400;
-    throw error;
+    throw createHttpError(400, "JSON invalido");
   }
 }
 
@@ -182,8 +391,7 @@ function participantDetails(state, participantId) {
 }
 
 async function api(req, res, url) {
-  const state = await readState();
-  state.fixtures = await readJson(FIXTURES_FILE);
+  const state = await store.getState();
 
   if (req.method === "GET" && url.pathname === "/api/bootstrap") {
     const deviceId = url.searchParams.get("deviceId");
@@ -197,6 +405,7 @@ async function api(req, res, url) {
       participant: participant || null,
       predictions: participant ? participantDetails(state, participant.id) : [],
       leaderboard: buildLeaderboard(state),
+      storage: USE_SUPABASE ? "supabase" : "local",
     });
   }
 
@@ -211,9 +420,9 @@ async function api(req, res, url) {
       return send(res, 400, { error: nameValidation.error || "Falta nombre y apellido." });
     }
 
-    let participant = state.participants.find((item) => item.deviceId === deviceId);
-    if (participant) {
-      return send(res, 200, { participant });
+    const existingParticipant = state.participants.find((item) => item.deviceId === deviceId);
+    if (existingParticipant) {
+      return send(res, 200, { participant: existingParticipant });
     }
 
     const duplicate = state.participants.find(
@@ -223,30 +432,24 @@ async function api(req, res, url) {
       return send(res, 409, { error: "Ese nombre ya esta registrado." });
     }
 
-    const fullName = nameValidation.fullName;
-    if (!fullName) {
-      return send(res, 400, { error: "Falta nombre y apellido." });
-    }
+    const participant = {
+      id: newId("p"),
+      deviceId,
+      fullName: nameValidation.fullName,
+      normalizedName: nameValidation.normalizedName,
+      createdAt: new Date().toISOString(),
+      submittedAt: null,
+    };
 
-    if (!participant) {
-      participant = {
-        id: newId("p"),
-        deviceId,
-        fullName,
-        normalizedName: nameValidation.normalizedName,
-        createdAt: new Date().toISOString(),
-        submittedAt: null,
-      };
-      state.participants.push(participant);
-      await saveState({
-        version: state.version,
-        lockAt: state.lockAt,
-        participants: state.participants,
-        predictions: state.predictions,
-        results: state.results,
-      });
+    try {
+      const created = await store.createParticipant(state, participant);
+      return send(res, 200, { participant: created });
+    } catch (error) {
+      if (error.status === 409) {
+        return send(res, 409, { error: "Ese nombre ya esta registrado." });
+      }
+      throw error;
     }
-    return send(res, 200, { participant });
   }
 
   if (req.method === "POST" && url.pathname === "/api/predictions") {
@@ -287,16 +490,11 @@ async function api(req, res, url) {
     );
     if (invalid) return send(res, 400, { error: "Hay predicciones invalidas." });
 
-    participant.submittedAt = new Date().toISOString();
-    state.predictions.push(...cleaned);
-    await saveState({
-      version: state.version,
-      lockAt: state.lockAt,
-      participants: state.participants,
-      predictions: state.predictions,
-      results: state.results,
+    const updatedParticipant = await store.submitPredictions(state, participant, cleaned);
+    return send(res, 200, {
+      participant: updatedParticipant,
+      predictions: participantDetails(state, participant.id),
     });
-    return send(res, 200, { participant, predictions: participantDetails(state, participant.id) });
   }
 
   if (req.method === "GET" && url.pathname === "/api/admin") {
@@ -309,6 +507,7 @@ async function api(req, res, url) {
       results: state.results,
       leaderboard: buildLeaderboard(state),
       predictionCount: state.predictions.length,
+      storage: USE_SUPABASE ? "supabase" : "local",
     });
   }
 
@@ -319,7 +518,7 @@ async function api(req, res, url) {
     if (!match) return send(res, 404, { error: "Partido no encontrado." });
     const clear = body.clear === true;
     if (clear) {
-      delete state.results[match.id];
+      await store.clearResult(state, match.id);
     } else {
       const homeGoals = Number(body.homeGoals);
       const awayGoals = Number(body.awayGoals);
@@ -333,20 +532,31 @@ async function api(req, res, url) {
       ) {
         return send(res, 400, { error: "Resultado invalido." });
       }
-      state.results[match.id] = {
+      await store.setResult(state, match.id, {
         homeGoals,
         awayGoals,
         updatedAt: new Date().toISOString(),
-      };
+      });
     }
-    await saveState({
-      version: state.version,
-      lockAt: state.lockAt,
-      participants: state.participants,
-      predictions: state.predictions,
-      results: state.results,
+    const updatedState = await store.getState();
+    return send(res, 200, {
+      results: updatedState.results,
+      leaderboard: buildLeaderboard(updatedState),
     });
-    return send(res, 200, { results: state.results, leaderboard: buildLeaderboard(state) });
+  }
+
+  if (req.method === "DELETE" && url.pathname.startsWith("/api/admin/participants/")) {
+    if (!requireAdmin(url)) return send(res, 401, { error: "Admin key invalida." });
+    const participantId = decodeURIComponent(url.pathname.split("/").pop() || "");
+    const participant = state.participants.find((item) => item.id === participantId);
+    if (!participant) return send(res, 404, { error: "Participante no encontrado." });
+    await store.deleteParticipant(state, participantId);
+    const updatedState = await store.getState();
+    return send(res, 200, {
+      participants: updatedState.participants,
+      leaderboard: buildLeaderboard(updatedState),
+      predictionCount: updatedState.predictions.length,
+    });
   }
 
   if (req.method === "GET" && url.pathname === "/api/admin/export.csv") {
@@ -412,6 +622,7 @@ const server = http.createServer(async (req, res) => {
 ensureState().then(() => {
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Prode Mundial 2026 corriendo en http://localhost:${PORT}`);
+    console.log(`Persistencia: ${USE_SUPABASE ? "Supabase" : "JSON local"}`);
     console.log(`Admin: http://localhost:${PORT}/admin?key=${ADMIN_KEY}`);
   });
 });
