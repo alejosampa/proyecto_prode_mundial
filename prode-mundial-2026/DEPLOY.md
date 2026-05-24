@@ -50,13 +50,35 @@ En el admin deberia aparecer `supabase` junto al conteo de participantes.
 3. Crear `New Web Service`.
 4. Conectar el repo `alejosampa/proyecto_prode_mundial`.
 5. Configurar:
-   - Root Directory: `tengo-que-hacer-una-aplicacion-para`
+   - Root Directory: `prode-mundial-2026`
    - Build Command: `npm install`
    - Start Command: `npm start`
    - Plan: Free
 6. Agregar variables de entorno:
    - `ADMIN_KEY`
+   - `MATCH_LIMIT`
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
 
 El link final de Render va a ser el que compartas con los participantes.
+
+## Modo prueba con 5 partidos
+
+Para probar con usuarios reales sin cargar los 72 partidos, agregar en Render:
+
+```text
+MATCH_LIMIT=5
+```
+
+Con eso la app muestra, exige y calcula puntos solo sobre los primeros 5 partidos del fixture.
+
+Para volver al prode real completo:
+
+1. Borrar la variable `MATCH_LIMIT` en Render, o dejarla vacia.
+2. Borrar datos de prueba de Supabase en este orden:
+   ```powershell
+   $env:SUPABASE_URL="TU_PROJECT_URL"
+   $env:SUPABASE_SERVICE_ROLE_KEY="TU_SERVICE_ROLE_KEY"
+   npm.cmd run reset:supabase
+   ```
+3. Redeploy/restart del servicio en Render.

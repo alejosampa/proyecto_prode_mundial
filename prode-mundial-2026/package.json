@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
-    "seed:supabase": "node scripts/seed-supabase.js"
+    "seed:supabase": "node scripts/seed-supabase.js",
+    "reset:supabase": "node scripts/reset-supabase.js"
   },
   "engines": {
     "node": ">=18"

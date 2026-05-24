@@ -27,7 +27,7 @@ const rows = fixtures.map((match, index) => ({
   display_order: index + 1,
 }));
 
-const response = await fetch(`${SUPABASE_URL}/rest/v1/fixtures`, {
+const response = await fetch(`${SUPABASE_URL}/rest/v1/fixtures?on_conflict=id`, {
   method: "POST",
   headers: {
     apikey: SUPABASE_SERVICE_ROLE_KEY,

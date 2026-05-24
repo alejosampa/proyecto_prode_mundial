@@ -8,6 +8,7 @@ const env = globalThis.process?.env || {};
 const PORT = Number(env.PORT || 3000);
 const ADMIN_KEY = env.ADMIN_KEY || "admin-2026";
 const LOCK_AT = env.LOCK_AT || "2026-06-11T17:00:00-03:00";
+const MATCH_LIMIT = Number(env.MATCH_LIMIT || 0);
 const SUPABASE_URL = (env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || "";
 const USE_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
@@ -142,6 +143,24 @@ function resultsObject(rows) {
   }, {});
 }
 
+function visibleFixtures(fixtures) {
+  if (!Number.isInteger(MATCH_LIMIT) || MATCH_LIMIT <= 0) return fixtures;
+  return fixtures.slice(0, MATCH_LIMIT);
+}
+
+function filterStateForVisibleFixtures(state) {
+  const fixtures = visibleFixtures(state.fixtures);
+  const fixtureIds = new Set(fixtures.map((match) => match.id));
+  return {
+    ...state,
+    fixtures,
+    predictions: state.predictions.filter((prediction) => fixtureIds.has(prediction.matchId)),
+    results: Object.fromEntries(
+      Object.entries(state.results || {}).filter(([matchId]) => fixtureIds.has(matchId)),
+    ),
+  };
+}
+
 async function readSupabaseState() {
   const [fixtureRows, participantRows, predictionRows, resultRows] = await Promise.all([
     supabaseRequest("fixtures?select=*&order=display_order.asc"),
@@ -236,7 +255,7 @@ const supabaseStore = {
   },
 
   async setResult(_state, matchId, result) {
-    await supabaseRequest("results", {
+    await supabaseRequest("results?on_conflict=match_id", {
       method: "POST",
       prefer: "resolution=merge-duplicates,return=representation",
       body: {
@@ -391,7 +410,8 @@ function participantDetails(state, participantId) {
 }
 
 async function api(req, res, url) {
-  const state = await store.getState();
+  const fullState = await store.getState();
+  const state = filterStateForVisibleFixtures(fullState);
 
   if (req.method === "GET" && url.pathname === "/api/bootstrap") {
     const deviceId = url.searchParams.get("deviceId");
@@ -406,6 +426,7 @@ async function api(req, res, url) {
       predictions: participant ? participantDetails(state, participant.id) : [],
       leaderboard: buildLeaderboard(state),
       storage: USE_SUPABASE ? "supabase" : "local",
+      matchLimit: MATCH_LIMIT > 0 ? MATCH_LIMIT : null,
     });
   }
 
@@ -442,7 +463,7 @@ async function api(req, res, url) {
     };
 
     try {
-      const created = await store.createParticipant(state, participant);
+      const created = await store.createParticipant(fullState, participant);
       return send(res, 200, { participant: created });
     } catch (error) {
       if (error.status === 409) {
@@ -490,10 +511,16 @@ async function api(req, res, url) {
     );
     if (invalid) return send(res, 400, { error: "Hay predicciones invalidas." });
 
-    const updatedParticipant = await store.submitPredictions(state, participant, cleaned);
+    const fullStateParticipant = fullState.participants.find((item) => item.id === participant.id);
+    const updatedParticipant = await store.submitPredictions(
+      fullState,
+      fullStateParticipant || participant,
+      cleaned,
+    );
+    const updatedState = filterStateForVisibleFixtures(await store.getState());
     return send(res, 200, {
       participant: updatedParticipant,
-      predictions: participantDetails(state, participant.id),
+      predictions: participantDetails(updatedState, participant.id),
     });
   }
 
@@ -508,6 +535,7 @@ async function api(req, res, url) {
       leaderboard: buildLeaderboard(state),
       predictionCount: state.predictions.length,
       storage: USE_SUPABASE ? "supabase" : "local",
+      matchLimit: MATCH_LIMIT > 0 ? MATCH_LIMIT : null,
     });
   }
 
@@ -518,7 +546,7 @@ async function api(req, res, url) {
     if (!match) return send(res, 404, { error: "Partido no encontrado." });
     const clear = body.clear === true;
     if (clear) {
-      await store.clearResult(state, match.id);
+      await store.clearResult(fullState, match.id);
     } else {
       const homeGoals = Number(body.homeGoals);
       const awayGoals = Number(body.awayGoals);
@@ -532,13 +560,13 @@ async function api(req, res, url) {
       ) {
         return send(res, 400, { error: "Resultado invalido." });
       }
-      await store.setResult(state, match.id, {
+      await store.setResult(fullState, match.id, {
         homeGoals,
         awayGoals,
         updatedAt: new Date().toISOString(),
       });
     }
-    const updatedState = await store.getState();
+    const updatedState = filterStateForVisibleFixtures(await store.getState());
     return send(res, 200, {
       results: updatedState.results,
       leaderboard: buildLeaderboard(updatedState),
@@ -550,8 +578,8 @@ async function api(req, res, url) {
     const participantId = decodeURIComponent(url.pathname.split("/").pop() || "");
     const participant = state.participants.find((item) => item.id === participantId);
     if (!participant) return send(res, 404, { error: "Participante no encontrado." });
-    await store.deleteParticipant(state, participantId);
-    const updatedState = await store.getState();
+    await store.deleteParticipant(fullState, participantId);
+    const updatedState = filterStateForVisibleFixtures(await store.getState());
     return send(res, 200, {
       participants: updatedState.participants,
       leaderboard: buildLeaderboard(updatedState),

@@ -6,6 +6,57 @@ let bootstrap = null;
 let adminState = null;
 let saveTimer = null;
 
+const teamFlags = {
+  Alemania: "🇩🇪",
+  "Arabia Saudita": "🇸🇦",
+  Argelia: "🇩🇿",
+  Argentina: "🇦🇷",
+  Australia: "🇦🇺",
+  Austria: "🇦🇹",
+  Bosnia: "🇧🇦",
+  Brasil: "🇧🇷",
+  Bélgica: "🇧🇪",
+  "Cabo Verde": "🇨🇻",
+  Canada: "🇨🇦",
+  Colombia: "🇨🇴",
+  "Corea del sur": "🇰🇷",
+  "Costa de Marfil": "🇨🇮",
+  Croacia: "🇭🇷",
+  Curazao: "🇨🇼",
+  "DR Congo": "🇨🇩",
+  Ecuador: "🇪🇨",
+  Egipto: "🇪🇬",
+  Escocia: "🏴",
+  España: "🇪🇸",
+  Francia: "🇫🇷",
+  Ghana: "🇬🇭",
+  Haiti: "🇭🇹",
+  Holanda: "🇳🇱",
+  Inglaterra: "🏴",
+  Iran: "🇮🇷",
+  Iraq: "🇮🇶",
+  Japón: "🇯🇵",
+  Jordania: "🇯🇴",
+  Marruecos: "🇲🇦",
+  Mexico: "🇲🇽",
+  Noruega: "🇳🇴",
+  "Nueva Zelanda": "🇳🇿",
+  Panama: "🇵🇦",
+  Paraguay: "🇵🇾",
+  Portugal: "🇵🇹",
+  Qatar: "🇶🇦",
+  "Republica Checa": "🇨🇿",
+  Senegal: "🇸🇳",
+  Sudafrica: "🇿🇦",
+  Suecia: "🇸🇪",
+  Suiza: "🇨🇭",
+  Tunez: "🇹🇳",
+  Turquia: "🇹🇷",
+  USA: "🇺🇸",
+  Uruguay: "🇺🇾",
+  Uzbekistan: "🇺🇿",
+};
+
 function getDeviceId() {
   let id = localStorage.getItem(deviceKey);
   if (!id) {
@@ -31,6 +82,15 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function teamLabel(team) {
+  const flag = teamFlags[team];
+  return `${flag ? `<span class="flag" aria-hidden="true">${flag}</span>` : ""}<span>${escapeHtml(team)}</span>`;
+}
+
+function hasArgentina(match) {
+  return match.home === "Argentina" || match.away === "Argentina";
 }
 
 function cleanDisplayName(value) {
@@ -211,13 +271,13 @@ function renderPredictionForm() {
 
 function predictionRow(match, draftValue) {
   return html`
-    <article class="match-row">
+    <article class="match-row ${hasArgentina(match) ? "argentina-match" : ""}">
       <div class="match-meta">
         <strong>${formatDate(match.date)}</strong><br />
         ${escapeHtml(match.venue)}
       </div>
       <div class="match-teams">
-        <span class="team">${escapeHtml(match.home)}</span>
+        <span class="team">${teamLabel(match.home)}</span>
         <input
           class="score-input"
           type="number"
@@ -241,7 +301,7 @@ function predictionRow(match, draftValue) {
           value="${draftValue?.awayGoals ?? ""}"
           required
         />
-        <span class="team away">${escapeHtml(match.away)}</span>
+        <span class="team away">${teamLabel(match.away)}</span>
       </div>
     </article>
   `;
@@ -368,9 +428,9 @@ function submittedRow(item) {
     ? `${item.result.homeGoals}-${item.result.awayGoals}`
     : "Pendiente";
   return html`
-    <article class="submitted-match">
+    <article class="submitted-match ${hasArgentina(item.match) ? "argentina-match" : ""}">
       <div>
-        <strong>${escapeHtml(item.match.home)} ${item.homeGoals}-${item.awayGoals} ${escapeHtml(item.match.away)}</strong>
+        <strong>${teamLabel(item.match.home)} ${item.homeGoals}-${item.awayGoals} ${teamLabel(item.match.away)}</strong>
         <div class="muted">${formatDate(item.match.date)} · Real: ${result}</div>
       </div>
       <span class="badge ${item.score.status}">${scoreLabel(item.score)}</span>
@@ -538,9 +598,9 @@ function adminParticipantsList(participants) {
 
 function adminMatchRow(match, result) {
   return html`
-    <article class="admin-match" data-admin-match="${match.id}">
+    <article class="admin-match ${hasArgentina(match) ? "argentina-match" : ""}" data-admin-match="${match.id}">
       <div>
-        <strong>${escapeHtml(match.home)} vs ${escapeHtml(match.away)}</strong>
+        <strong>${teamLabel(match.home)} vs ${teamLabel(match.away)}</strong>
         <small>Grupo ${match.group} · ${formatDate(match.date)} · ${escapeHtml(match.venue)}</small>
       </div>
       <input class="score-input" type="number" min="0" max="30" inputmode="numeric" data-admin-home value="${result?.homeGoals ?? ""}" aria-label="Goles local" />

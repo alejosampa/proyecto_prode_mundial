@@ -3,11 +3,13 @@ services:
     name: prode-mundial-2026
     env: node
     plan: free
-    rootDir: tengo-que-hacer-una-aplicacion-para
+    rootDir: prode-mundial-2026
     buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: ADMIN_KEY
+        sync: false
+      - key: MATCH_LIMIT
         sync: false
       - key: SUPABASE_URL
         sync: false
