@@ -1,6 +1,6 @@
 create table if not exists fixtures (
   id text primary key,
-  phase text not null default 'group',
+  phase text not null default 'round32',
   group_name text not null,
   matchday integer not null,
   match_date timestamptz not null,

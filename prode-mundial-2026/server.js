@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 const env = globalThis.process?.env || {};
 const PORT = Number(env.PORT || 3000);
 const ADMIN_KEY = env.ADMIN_KEY || "admin-2026";
-const LOCK_AT = env.LOCK_AT || "2026-06-11T17:00:00-03:00";
 const ACTIVE_PHASE = env.ACTIVE_PHASE || "round32";
 const MATCH_LIMIT = Number(env.MATCH_LIMIT || 0);
 const SUPABASE_URL = (env.SUPABASE_URL || "").replace(/\/$/, "");
@@ -18,11 +17,9 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(ROOT, "public");
 const DATA_DIR = path.join(ROOT, "data");
 const STATE_FILE = path.join(DATA_DIR, "state.json");
-const FIXTURES_FILE = path.join(DATA_DIR, "fixtures.json");
 const ROUND32_FIXTURES_FILE = path.join(DATA_DIR, "round32-fixtures.json");
 
 const PHASES = [
-  { id: "group", label: "Fase de grupos", historical: true },
   { id: "round32", label: "Dieciseisavos", historical: false },
 ];
 
@@ -41,7 +38,7 @@ async function ensureState() {
   } catch {
     await writeJson(STATE_FILE, {
       version: 1,
-      lockAt: LOCK_AT,
+      lockAt: null,
       participants: [],
       predictions: [],
       results: {},
@@ -66,7 +63,7 @@ async function writeJson(file, data) {
   await fs.writeFile(file, `${JSON.stringify(data, null, 2)}\n`, "utf8");
 }
 
-function normalizeFixture(match, index, fallbackPhase = "group") {
+function normalizeFixture(match, index, fallbackPhase = "round32") {
   return {
     ...match,
     phase: match.phase || fallbackPhase,
@@ -76,13 +73,9 @@ function normalizeFixture(match, index, fallbackPhase = "group") {
 }
 
 async function readAllLocalFixtures() {
-  const groupFixtures = (await readJson(FIXTURES_FILE)).map((match, index) =>
-    normalizeFixture(match, index, "group"),
+  return (await readOptionalJson(ROUND32_FIXTURES_FILE, [])).map((match, index) =>
+    normalizeFixture(match, index, "round32"),
   );
-  const round32Fixtures = (await readOptionalJson(ROUND32_FIXTURES_FILE, [])).map((match, index) =>
-    normalizeFixture(match, groupFixtures.length + index, "round32"),
-  );
-  return [...groupFixtures, ...round32Fixtures];
 }
 
 async function readLocalState() {
@@ -141,7 +134,7 @@ function eq(value) {
 function toFixture(row) {
   return {
     id: row.id,
-    phase: row.phase || "group",
+    phase: row.phase || "round32",
     group: row.group_name,
     matchday: row.matchday,
     date: row.match_date,
@@ -194,7 +187,7 @@ async function readSupabaseState() {
 
   return {
     version: 1,
-    lockAt: LOCK_AT,
+    lockAt: null,
     fixtures: fixtureRows.map(toFixture),
     participants: participantRows.map(toParticipant),
     predictions: predictionRows.map(toPrediction),
@@ -330,7 +323,7 @@ function getRequestedPhase(url, body = null) {
 }
 
 function fixturePhase(match) {
-  return match.phase || "group";
+  return match.phase || "round32";
 }
 
 function isActivePhase(phase) {
@@ -360,7 +353,6 @@ function filterStateForPhase(state, phase) {
 }
 
 function matchLockAt(match, phase) {
-  if (phase === "group") return LOCK_AT;
   return match.lockAt || match.date;
 }
 
@@ -369,7 +361,6 @@ function isMatchLocked(match, phase) {
 }
 
 function isPhaseLocked(state, phase) {
-  if (phase === "group") return true;
   return state.fixtures.length > 0 && state.fixtures.every((match) => isMatchLocked(match, phase));
 }
 
@@ -505,7 +496,7 @@ function buildClientState(state, phase, participant = null) {
     activePhase: ACTIVE_PHASE,
     phase,
     phaseLabel: phaseDefinition(phase).label,
-    lockAt: state.lockAt,
+    lockAt: null,
     locked: isPhaseLocked(state, phase),
     fixtures: decorateFixturesForClient(state.fixtures, phase),
     participant: participant || null,
@@ -560,7 +551,7 @@ async function api(req, res, url) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/register") {
-    if (isPhaseLocked(state, "group")) {
+    if (isPhaseLocked(state, phase)) {
       return send(res, 403, { error: "Las inscripciones ya estan bloqueadas." });
     }
     const body = await readBody(req);
@@ -606,7 +597,7 @@ async function api(req, res, url) {
     const body = await readBody(req);
     const requestedPhase = getRequestedPhase(url, body);
     const phaseState = filterStateForPhase(fullState, requestedPhase);
-    if (!isActivePhase(requestedPhase) || requestedPhase === "group") {
+    if (!isActivePhase(requestedPhase)) {
       return send(res, 403, { error: "Esta etapa esta cerrada para nuevas predicciones." });
     }
 

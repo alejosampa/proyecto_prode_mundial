@@ -27,9 +27,7 @@ async function readFixtures(file, phase, displayOffset = 0) {
   }
 }
 
-const groupFixtures = await readFixtures("fixtures.json", "group");
-const round32Fixtures = await readFixtures("round32-fixtures.json", "round32", groupFixtures.length);
-const fixtures = [...groupFixtures, ...round32Fixtures];
+const fixtures = await readFixtures("round32-fixtures.json", "round32", 72);
 
 const rows = fixtures.map((match) => ({
   id: match.id,

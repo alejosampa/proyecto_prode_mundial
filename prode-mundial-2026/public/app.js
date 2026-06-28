@@ -1,4 +1,5 @@
 const app = document.querySelector("#app");
+const deviceKey = "prode-2026-device-id";
 const participantKey = "prode-2026-participant-id";
 const selectedPhaseKey = "prode-2026-selected-phase";
 const activeDefaultPhase = "round32";
@@ -133,6 +134,18 @@ function setParticipant(participant) {
   localStorage.setItem(participantKey, participant.id);
 }
 
+function getDeviceId() {
+  let id = localStorage.getItem(deviceKey);
+  if (!id) {
+    const randomPart =
+      window.crypto?.randomUUID?.() ||
+      `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    id = `device_${randomPart}`;
+    localStorage.setItem(deviceKey, id);
+  }
+  return id;
+}
+
 function clearParticipant() {
   localStorage.removeItem(participantKey);
   bootstrap = { ...bootstrap, participant: null, predictions: [] };
@@ -170,7 +183,7 @@ async function loadBootstrap(phase = getSelectedPhase()) {
 
 function groupFixtures(fixtures) {
   return fixtures.reduce((acc, match) => {
-    const key = match.phase === "group" ? `Grupo ${match.group}` : match.group;
+    const key = match.group;
     if (!acc[key]) acc[key] = [];
     acc[key].push(match);
     return acc;
@@ -178,6 +191,7 @@ function groupFixtures(fixtures) {
 }
 
 function phaseTabs(state, compact = false) {
+  if (!state.phases || state.phases.length <= 1) return "";
   return html`
     <div class="phase-tabs" role="tablist" aria-label="Etapas">
       ${state.phases
@@ -222,11 +236,6 @@ function renderPublic() {
     return;
   }
 
-  if (bootstrap.phase === "group") {
-    renderSubmitted();
-    return;
-  }
-
   renderPredictionForm();
 }
 
@@ -237,7 +246,7 @@ function renderLogin() {
         <div class="section-head">
           <div>
             <h2>Entrar al prode</h2>
-            <p>Usa el mismo nombre y apellido con el que jugaste la fase de grupos.</p>
+            <p>Registrate con nombre y apellido para jugar dieciseisavos.</p>
           </div>
         </div>
         ${phaseTabs(bootstrap)}
@@ -246,7 +255,7 @@ function renderLogin() {
             <label for="fullName">Nombre y apellido</label>
             <input id="fullName" name="fullName" autocomplete="name" autocapitalize="words" required maxlength="80" />
           </div>
-          <button class="btn" type="submit">Entrar</button>
+          <button class="btn" type="submit">Registrarme</button>
         </form>
       </div>
       ${leaderboardAside()}
@@ -262,12 +271,16 @@ function renderLogin() {
       return;
     }
     await withButton(event.submitter, async () => {
-      const result = await api("/api/login", {
+      const result = await api("/api/register", {
         method: "POST",
-        body: JSON.stringify({ fullName: nameValidation.fullName, phase: bootstrap.phase }),
+        body: JSON.stringify({
+          deviceId: getDeviceId(),
+          fullName: nameValidation.fullName,
+          phase: bootstrap.phase,
+        }),
       });
       setParticipant(result.participant);
-      bootstrap = result.bootstrap;
+      await loadBootstrap(bootstrap.phase);
       renderPublic();
     });
   });
@@ -470,7 +483,7 @@ function renderSubmitted() {
   const totals = bootstrap.leaderboard.find(
     (row) => row.participantId === bootstrap.participant.id,
   ) || { points: 0, exacts: 0, winners: 0, position: "-" };
-  const title = bootstrap.phase === "group" ? "Fase de grupos" : "Tus predicciones";
+  const title = "Tus predicciones";
 
   app.innerHTML = html`
     <section class="grid">
