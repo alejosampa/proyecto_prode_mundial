@@ -23,7 +23,23 @@ $env:SUPABASE_SERVICE_ROLE_KEY="TU_SERVICE_ROLE_KEY"
 npm.cmd run seed:supabase
 ```
 
-Deberia decir que cargo 72 partidos.
+Deberia decir que cargo el fixture completo disponible.
+
+## Actualizar a dieciseisavos
+
+Si la base ya existe con la fase de grupos, no ejecutes `schema.sql` de nuevo ni borres tablas.
+
+1. Entrar a Supabase > `SQL Editor`.
+2. Copiar y ejecutar el contenido de `supabase/round32-migration.sql`.
+3. En PowerShell, desde esta carpeta, cargar el nuevo fixture:
+
+```powershell
+$env:SUPABASE_URL="TU_PROJECT_URL"
+$env:SUPABASE_SERVICE_ROLE_KEY="TU_SERVICE_ROLE_KEY"
+npm.cmd run seed:supabase
+```
+
+Esto conserva participantes, predicciones y resultados de fase de grupos, y agrega dieciseisavos.
 
 ## 3. Probar local contra Supabase
 
@@ -56,29 +72,30 @@ En el admin deberia aparecer `supabase` junto al conteo de participantes.
    - Plan: Free
 6. Agregar variables de entorno:
    - `ADMIN_KEY`
+   - `ACTIVE_PHASE=round32`
    - `MATCH_LIMIT`
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
 
 El link final de Render va a ser el que compartas con los participantes.
 
-## Modo prueba con 5 partidos
+## Modo prueba con pocos partidos
 
-Para probar con usuarios reales sin cargar los 72 partidos, agregar en Render:
+Para probar con usuarios reales sin abrir todos los dieciseisavos, agregar en Render:
 
 ```text
-MATCH_LIMIT=5
+MATCH_LIMIT=3
 ```
 
-Con eso la app muestra, exige y calcula puntos solo sobre los primeros 5 partidos del fixture.
+Con eso la app muestra, exige y calcula puntos solo sobre los primeros 3 partidos de la etapa activa.
 
-Para volver al prode real completo:
+Para volver a todos los dieciseisavos:
 
 1. Borrar la variable `MATCH_LIMIT` en Render, o dejarla vacia.
-2. Borrar datos de prueba de Supabase en este orden:
+2. Si queres borrar solo datos de prueba de dieciseisavos, sin tocar grupos ni participantes:
    ```powershell
    $env:SUPABASE_URL="TU_PROJECT_URL"
    $env:SUPABASE_SERVICE_ROLE_KEY="TU_SERVICE_ROLE_KEY"
-   npm.cmd run reset:supabase
+   npm.cmd run reset:round32
    ```
 3. Redeploy/restart del servicio en Render.

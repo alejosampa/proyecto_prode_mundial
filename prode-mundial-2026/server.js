@@ -8,6 +8,7 @@ const env = globalThis.process?.env || {};
 const PORT = Number(env.PORT || 3000);
 const ADMIN_KEY = env.ADMIN_KEY || "admin-2026";
 const LOCK_AT = env.LOCK_AT || "2026-06-11T17:00:00-03:00";
+const ACTIVE_PHASE = env.ACTIVE_PHASE || "round32";
 const MATCH_LIMIT = Number(env.MATCH_LIMIT || 0);
 const SUPABASE_URL = (env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -18,6 +19,12 @@ const PUBLIC_DIR = path.join(ROOT, "public");
 const DATA_DIR = path.join(ROOT, "data");
 const STATE_FILE = path.join(DATA_DIR, "state.json");
 const FIXTURES_FILE = path.join(DATA_DIR, "fixtures.json");
+const ROUND32_FIXTURES_FILE = path.join(DATA_DIR, "round32-fixtures.json");
+
+const PHASES = [
+  { id: "group", label: "Fase de grupos", historical: true },
+  { id: "round32", label: "Dieciseisavos", historical: false },
+];
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -46,14 +53,45 @@ async function readJson(file) {
   return JSON.parse(await fs.readFile(file, "utf8"));
 }
 
+async function readOptionalJson(file, fallback) {
+  try {
+    return await readJson(file);
+  } catch (error) {
+    if (error.code === "ENOENT") return fallback;
+    throw error;
+  }
+}
+
 async function writeJson(file, data) {
   await fs.writeFile(file, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+}
+
+function normalizeFixture(match, index, fallbackPhase = "group") {
+  return {
+    ...match,
+    phase: match.phase || fallbackPhase,
+    lockAt: match.lockAt || match.date,
+    displayOrder: match.displayOrder || index + 1,
+  };
+}
+
+async function readAllLocalFixtures() {
+  const groupFixtures = (await readJson(FIXTURES_FILE)).map((match, index) =>
+    normalizeFixture(match, index, "group"),
+  );
+  const round32Fixtures = (await readOptionalJson(ROUND32_FIXTURES_FILE, [])).map((match, index) =>
+    normalizeFixture(match, groupFixtures.length + index, "round32"),
+  );
+  return [...groupFixtures, ...round32Fixtures];
 }
 
 async function readLocalState() {
   await ensureState();
   const state = await readJson(STATE_FILE);
-  state.fixtures = await readJson(FIXTURES_FILE);
+  state.fixtures = await readAllLocalFixtures();
+  state.predictions ||= [];
+  state.results ||= {};
+  state.participants ||= [];
   return state;
 }
 
@@ -103,12 +141,15 @@ function eq(value) {
 function toFixture(row) {
   return {
     id: row.id,
+    phase: row.phase || "group",
     group: row.group_name,
     matchday: row.matchday,
     date: row.match_date,
+    lockAt: row.lock_at || row.match_date,
     venue: row.venue,
     home: row.home_team,
     away: row.away_team,
+    displayOrder: row.display_order,
   };
 }
 
@@ -143,24 +184,6 @@ function resultsObject(rows) {
   }, {});
 }
 
-function visibleFixtures(fixtures) {
-  if (!Number.isInteger(MATCH_LIMIT) || MATCH_LIMIT <= 0) return fixtures;
-  return fixtures.slice(0, MATCH_LIMIT);
-}
-
-function filterStateForVisibleFixtures(state) {
-  const fixtures = visibleFixtures(state.fixtures);
-  const fixtureIds = new Set(fixtures.map((match) => match.id));
-  return {
-    ...state,
-    fixtures,
-    predictions: state.predictions.filter((prediction) => fixtureIds.has(prediction.matchId)),
-    results: Object.fromEntries(
-      Object.entries(state.results || {}).filter(([matchId]) => fixtureIds.has(matchId)),
-    ),
-  };
-}
-
 async function readSupabaseState() {
   const [fixtureRows, participantRows, predictionRows, resultRows] = await Promise.all([
     supabaseRequest("fixtures?select=*&order=display_order.asc"),
@@ -190,8 +213,11 @@ const localStore = {
     return participant;
   },
 
-  async submitPredictions(state, participant, predictions) {
-    participant.submittedAt = new Date().toISOString();
+  async upsertPredictions(state, participant, predictions) {
+    const ids = new Set(predictions.map((prediction) => prediction.matchId));
+    state.predictions = state.predictions.filter(
+      (prediction) => prediction.participantId !== participant.id || !ids.has(prediction.matchId),
+    );
     state.predictions.push(...predictions);
     await saveLocalState(state);
     return participant;
@@ -234,10 +260,11 @@ const supabaseStore = {
     return toParticipant(rows[0]);
   },
 
-  async submitPredictions(state, participant, predictions) {
-    const submittedAt = new Date().toISOString();
-    await supabaseRequest("predictions", {
+  async upsertPredictions(_state, participant, predictions) {
+    if (!predictions.length) return participant;
+    await supabaseRequest("predictions?on_conflict=participant_id,match_id", {
       method: "POST",
+      prefer: "resolution=merge-duplicates,return=minimal",
       body: predictions.map((prediction) => ({
         participant_id: prediction.participantId,
         match_id: prediction.matchId,
@@ -245,13 +272,7 @@ const supabaseStore = {
         away_goals: prediction.awayGoals,
       })),
     });
-    const rows = await supabaseRequest(`participants?id=${eq(participant.id)}`, {
-      method: "PATCH",
-      body: { submitted_at: submittedAt },
-    });
-    participant.submittedAt = submittedAt;
-    state.predictions.push(...predictions);
-    return rows[0] ? toParticipant(rows[0]) : participant;
+    return participant;
   },
 
   async setResult(_state, matchId, result) {
@@ -300,8 +321,64 @@ function send(res, status, body, type = "application/json; charset=utf-8") {
   res.end(type.startsWith("application/json") ? JSON.stringify(body) : body);
 }
 
-function isLocked(state) {
-  return Date.now() >= new Date(state.lockAt).getTime();
+function phaseDefinition(phase) {
+  return PHASES.find((item) => item.id === phase) || PHASES.find((item) => item.id === ACTIVE_PHASE) || PHASES[0];
+}
+
+function getRequestedPhase(url, body = null) {
+  return phaseDefinition(body?.phase || url.searchParams.get("phase") || ACTIVE_PHASE).id;
+}
+
+function fixturePhase(match) {
+  return match.phase || "group";
+}
+
+function isActivePhase(phase) {
+  return phase === ACTIVE_PHASE;
+}
+
+function visibleFixtures(fixtures, phase) {
+  const phaseFixtures = fixtures.filter((match) => fixturePhase(match) === phase);
+  if (!isActivePhase(phase) || !Number.isInteger(MATCH_LIMIT) || MATCH_LIMIT <= 0) {
+    return phaseFixtures;
+  }
+  return phaseFixtures.slice(0, MATCH_LIMIT);
+}
+
+function filterStateForPhase(state, phase) {
+  const fixtures = visibleFixtures(state.fixtures, phase);
+  const fixtureIds = new Set(fixtures.map((match) => match.id));
+  return {
+    ...state,
+    phase,
+    fixtures,
+    predictions: state.predictions.filter((prediction) => fixtureIds.has(prediction.matchId)),
+    results: Object.fromEntries(
+      Object.entries(state.results || {}).filter(([matchId]) => fixtureIds.has(matchId)),
+    ),
+  };
+}
+
+function matchLockAt(match, phase) {
+  if (phase === "group") return LOCK_AT;
+  return match.lockAt || match.date;
+}
+
+function isMatchLocked(match, phase) {
+  return Date.now() >= new Date(matchLockAt(match, phase)).getTime();
+}
+
+function isPhaseLocked(state, phase) {
+  if (phase === "group") return true;
+  return state.fixtures.length > 0 && state.fixtures.every((match) => isMatchLocked(match, phase));
+}
+
+function decorateFixturesForClient(fixtures, phase) {
+  return fixtures.map((match) => ({
+    ...match,
+    lockAt: matchLockAt(match, phase),
+    locked: isMatchLocked(match, phase),
+  }));
 }
 
 function cleanDisplayName(value) {
@@ -406,32 +483,84 @@ function participantDetails(state, participantId) {
       match: fixturesById.get(prediction.matchId),
       result: results[prediction.matchId] || null,
       score: scorePrediction(prediction, results[prediction.matchId]),
-    }));
+    }))
+    .filter((prediction) => prediction.match);
+}
+
+function findParticipantById(state, participantId) {
+  return state.participants.find((participant) => participant.id === participantId) || null;
+}
+
+function findParticipantByName(state, normalizedName) {
+  return state.participants.find((participant) => participantNameKey(participant) === normalizedName) || null;
+}
+
+function buildClientState(state, phase, participant = null) {
+  return {
+    phases: PHASES.map((item) => ({
+      ...item,
+      active: item.id === ACTIVE_PHASE,
+      selected: item.id === phase,
+    })),
+    activePhase: ACTIVE_PHASE,
+    phase,
+    phaseLabel: phaseDefinition(phase).label,
+    lockAt: state.lockAt,
+    locked: isPhaseLocked(state, phase),
+    fixtures: decorateFixturesForClient(state.fixtures, phase),
+    participant: participant || null,
+    predictions: participant ? participantDetails(state, participant.id) : [],
+    leaderboard: buildLeaderboard(state),
+    storage: USE_SUPABASE ? "supabase" : "local",
+    matchLimit: isActivePhase(phase) && MATCH_LIMIT > 0 ? MATCH_LIMIT : null,
+  };
+}
+
+function validateScorePair(homeGoals, awayGoals) {
+  return (
+    Number.isInteger(homeGoals) &&
+    Number.isInteger(awayGoals) &&
+    homeGoals >= 0 &&
+    awayGoals >= 0 &&
+    homeGoals <= 30 &&
+    awayGoals <= 30
+  );
 }
 
 async function api(req, res, url) {
   const fullState = await store.getState();
-  const state = filterStateForVisibleFixtures(fullState);
+  const phase = getRequestedPhase(url);
+  const state = filterStateForPhase(fullState, phase);
 
   if (req.method === "GET" && url.pathname === "/api/bootstrap") {
+    const participantId = url.searchParams.get("participantId");
     const deviceId = url.searchParams.get("deviceId");
-    const participant = deviceId
-      ? state.participants.find((item) => item.deviceId === deviceId)
-      : null;
+    const participant =
+      (participantId && findParticipantById(state, participantId)) ||
+      (deviceId && state.participants.find((item) => item.deviceId === deviceId)) ||
+      null;
+    return send(res, 200, buildClientState(state, phase, participant));
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/login") {
+    const body = await readBody(req);
+    const nameValidation = validateFullName(body.fullName);
+    if (!nameValidation.valid) {
+      return send(res, 400, { error: nameValidation.error || "Falta nombre y apellido." });
+    }
+    const participant = findParticipantByName(fullState, nameValidation.normalizedName);
+    if (!participant) {
+      return send(res, 404, { error: "No encontre un participante registrado con ese nombre." });
+    }
+    const phaseState = filterStateForPhase(fullState, getRequestedPhase(url, body));
     return send(res, 200, {
-      lockAt: state.lockAt,
-      locked: isLocked(state),
-      fixtures: state.fixtures,
-      participant: participant || null,
-      predictions: participant ? participantDetails(state, participant.id) : [],
-      leaderboard: buildLeaderboard(state),
-      storage: USE_SUPABASE ? "supabase" : "local",
-      matchLimit: MATCH_LIMIT > 0 ? MATCH_LIMIT : null,
+      participant,
+      bootstrap: buildClientState(phaseState, phaseState.phase, participant),
     });
   }
 
   if (req.method === "POST" && url.pathname === "/api/register") {
-    if (isLocked(state)) {
+    if (isPhaseLocked(state, "group")) {
       return send(res, 403, { error: "Las inscripciones ya estan bloqueadas." });
     }
     const body = await readBody(req);
@@ -474,25 +603,24 @@ async function api(req, res, url) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/predictions") {
-    if (isLocked(state)) {
-      return send(res, 403, { error: "El prode ya esta bloqueado." });
-    }
     const body = await readBody(req);
-    const participant = state.participants.find(
-      (item) => item.deviceId === String(body.deviceId || ""),
-    );
+    const requestedPhase = getRequestedPhase(url, body);
+    const phaseState = filterStateForPhase(fullState, requestedPhase);
+    if (!isActivePhase(requestedPhase) || requestedPhase === "group") {
+      return send(res, 403, { error: "Esta etapa esta cerrada para nuevas predicciones." });
+    }
+
+    const participant = findParticipantById(fullState, String(body.participantId || ""));
     if (!participant) return send(res, 404, { error: "Participante no encontrado." });
-    if (participant.submittedAt) {
-      return send(res, 409, { error: "Tus predicciones ya fueron enviadas." });
+
+    const fixtureIds = new Set(phaseState.fixtures.map((match) => match.id));
+    const unlockedFixtures = phaseState.fixtures.filter((match) => !isMatchLocked(match, requestedPhase));
+    if (!unlockedFixtures.length) {
+      return send(res, 403, { error: "Todos los partidos visibles ya estan bloqueados." });
     }
 
-    const fixtureIds = new Set(state.fixtures.map((match) => match.id));
-    const predictions = Array.isArray(body.predictions) ? body.predictions : [];
-    if (predictions.length !== state.fixtures.length) {
-      return send(res, 400, { error: "Tenes que completar todos los partidos." });
-    }
-
-    const cleaned = predictions.map((prediction) => ({
+    const incoming = Array.isArray(body.predictions) ? body.predictions : [];
+    const cleaned = incoming.map((prediction) => ({
       participantId: participant.id,
       matchId: String(prediction.matchId),
       homeGoals: Number(prediction.homeGoals),
@@ -502,47 +630,61 @@ async function api(req, res, url) {
     const invalid = cleaned.some(
       (prediction) =>
         !fixtureIds.has(prediction.matchId) ||
-        !Number.isInteger(prediction.homeGoals) ||
-        !Number.isInteger(prediction.awayGoals) ||
-        prediction.homeGoals < 0 ||
-        prediction.awayGoals < 0 ||
-        prediction.homeGoals > 30 ||
-        prediction.awayGoals > 30,
+        !validateScorePair(prediction.homeGoals, prediction.awayGoals),
     );
     if (invalid) return send(res, 400, { error: "Hay predicciones invalidas." });
 
-    const fullStateParticipant = fullState.participants.find((item) => item.id === participant.id);
-    const updatedParticipant = await store.submitPredictions(
-      fullState,
-      fullStateParticipant || participant,
-      cleaned,
+    const predictionsByMatch = new Map(cleaned.map((prediction) => [prediction.matchId, prediction]));
+    const missingUnlocked = unlockedFixtures.some((match) => !predictionsByMatch.has(match.id));
+    if (missingUnlocked) {
+      return send(res, 400, { error: "Completa los partidos que todavia no empezaron." });
+    }
+
+    const existingPredictions = new Map(
+      phaseState.predictions
+        .filter((prediction) => prediction.participantId === participant.id)
+        .map((prediction) => [prediction.matchId, prediction]),
     );
-    const updatedState = filterStateForVisibleFixtures(await store.getState());
-    return send(res, 200, {
-      participant: updatedParticipant,
-      predictions: participantDetails(updatedState, participant.id),
-    });
+    const lockedChanged = phaseState.fixtures
+      .filter((match) => isMatchLocked(match, requestedPhase))
+      .some((match) => {
+        const incomingPrediction = predictionsByMatch.get(match.id);
+        if (!incomingPrediction) return false;
+        const existing = existingPredictions.get(match.id);
+        return (
+          !existing ||
+          existing.homeGoals !== incomingPrediction.homeGoals ||
+          existing.awayGoals !== incomingPrediction.awayGoals
+        );
+      });
+    if (lockedChanged) {
+      return send(res, 403, { error: "No se pueden modificar partidos que ya empezaron." });
+    }
+
+    const unlockedIds = new Set(unlockedFixtures.map((match) => match.id));
+    const toSave = cleaned.filter((prediction) => unlockedIds.has(prediction.matchId));
+    await store.upsertPredictions(fullState, participant, toSave);
+    const updatedFullState = await store.getState();
+    const updatedState = filterStateForPhase(updatedFullState, requestedPhase);
+    return send(res, 200, buildClientState(updatedState, requestedPhase, participant));
   }
 
   if (req.method === "GET" && url.pathname === "/api/admin") {
     if (!requireAdmin(url)) return send(res, 401, { error: "Admin key invalida." });
     return send(res, 200, {
-      lockAt: state.lockAt,
-      locked: isLocked(state),
-      fixtures: state.fixtures,
+      ...buildClientState(state, phase, null),
       participants: state.participants,
       results: state.results,
-      leaderboard: buildLeaderboard(state),
       predictionCount: state.predictions.length,
-      storage: USE_SUPABASE ? "supabase" : "local",
-      matchLimit: MATCH_LIMIT > 0 ? MATCH_LIMIT : null,
     });
   }
 
   if (req.method === "POST" && url.pathname === "/api/admin/results") {
     if (!requireAdmin(url)) return send(res, 401, { error: "Admin key invalida." });
     const body = await readBody(req);
-    const match = state.fixtures.find((item) => item.id === String(body.matchId || ""));
+    const requestedPhase = getRequestedPhase(url, body);
+    const phaseState = filterStateForPhase(fullState, requestedPhase);
+    const match = phaseState.fixtures.find((item) => item.id === String(body.matchId || ""));
     if (!match) return send(res, 404, { error: "Partido no encontrado." });
     const clear = body.clear === true;
     if (clear) {
@@ -550,14 +692,7 @@ async function api(req, res, url) {
     } else {
       const homeGoals = Number(body.homeGoals);
       const awayGoals = Number(body.awayGoals);
-      if (
-        !Number.isInteger(homeGoals) ||
-        !Number.isInteger(awayGoals) ||
-        homeGoals < 0 ||
-        awayGoals < 0 ||
-        homeGoals > 30 ||
-        awayGoals > 30
-      ) {
+      if (!validateScorePair(homeGoals, awayGoals)) {
         return send(res, 400, { error: "Resultado invalido." });
       }
       await store.setResult(fullState, match.id, {
@@ -566,20 +701,22 @@ async function api(req, res, url) {
         updatedAt: new Date().toISOString(),
       });
     }
-    const updatedState = filterStateForVisibleFixtures(await store.getState());
+    const updatedState = filterStateForPhase(await store.getState(), requestedPhase);
     return send(res, 200, {
+      ...buildClientState(updatedState, requestedPhase, null),
+      participants: updatedState.participants,
       results: updatedState.results,
-      leaderboard: buildLeaderboard(updatedState),
+      predictionCount: updatedState.predictions.length,
     });
   }
 
   if (req.method === "DELETE" && url.pathname.startsWith("/api/admin/participants/")) {
     if (!requireAdmin(url)) return send(res, 401, { error: "Admin key invalida." });
     const participantId = decodeURIComponent(url.pathname.split("/").pop() || "");
-    const participant = state.participants.find((item) => item.id === participantId);
+    const participant = fullState.participants.find((item) => item.id === participantId);
     if (!participant) return send(res, 404, { error: "Participante no encontrado." });
     await store.deleteParticipant(fullState, participantId);
-    const updatedState = filterStateForVisibleFixtures(await store.getState());
+    const updatedState = filterStateForPhase(await store.getState(), phase);
     return send(res, 200, {
       participants: updatedState.participants,
       leaderboard: buildLeaderboard(updatedState),
@@ -591,16 +728,16 @@ async function api(req, res, url) {
     if (!requireAdmin(url)) return send(res, 401, "Admin key invalida.", "text/plain; charset=utf-8");
     const leaderboard = buildLeaderboard(state);
     const lines = [
-      ["posicion", "nombre", "puntos", "exactos", "ganadores", "predicciones", "enviado"].join(","),
+      ["etapa", "posicion", "nombre", "puntos", "exactos", "ganadores", "predicciones"].join(","),
       ...leaderboard.map((row) =>
         [
+          csv(phaseDefinition(phase).label),
           row.position,
           csv(row.fullName),
           row.points,
           row.exacts,
           row.winners,
           row.predictionsCount,
-          row.submittedAt || "",
         ].join(","),
       ),
     ];
@@ -651,6 +788,7 @@ ensureState().then(() => {
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Prode Mundial 2026 corriendo en http://localhost:${PORT}`);
     console.log(`Persistencia: ${USE_SUPABASE ? "Supabase" : "JSON local"}`);
+    console.log(`Etapa activa: ${ACTIVE_PHASE}`);
     console.log(`Admin: http://localhost:${PORT}/admin?key=${ADMIN_KEY}`);
   });
 });

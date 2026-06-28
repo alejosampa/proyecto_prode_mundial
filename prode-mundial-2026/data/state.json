@@ -1,7 +1,16 @@
 {
   "version": 1,
   "lockAt": "2026-06-11T17:00:00-03:00",
-  "participants": [],
+  "participants": [
+    {
+      "id": "p_29983f154830425b9d0c",
+      "deviceId": "device_1779034572257-eeae537e0b6868",
+      "fullName": "Alejo Sampaulise",
+      "normalizedName": "alejo sampaulise",
+      "createdAt": "2026-05-25T21:44:09.657Z",
+      "submittedAt": null
+    }
+  ],
   "predictions": [],
   "results": {}
 }

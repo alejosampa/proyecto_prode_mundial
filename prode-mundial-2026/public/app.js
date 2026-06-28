@@ -1,5 +1,7 @@
 const app = document.querySelector("#app");
-const deviceKey = "prode-2026-device-id";
+const participantKey = "prode-2026-participant-id";
+const selectedPhaseKey = "prode-2026-selected-phase";
+const activeDefaultPhase = "round32";
 const adminRoute = window.location.pathname.startsWith("/admin");
 const tableRoute = window.location.pathname.startsWith("/tabla");
 let bootstrap = null;
@@ -7,72 +9,61 @@ let adminState = null;
 let saveTimer = null;
 
 const teamFlags = {
-  Alemania: "🇩🇪",
-  "Arabia Saudita": "🇸🇦",
-  Argelia: "🇩🇿",
-  Argentina: "🇦🇷",
-  Australia: "🇦🇺",
-  Austria: "🇦🇹",
-  Bosnia: "🇧🇦",
-  Brasil: "🇧🇷",
-  Bélgica: "🇧🇪",
-  "Cabo Verde": "🇨🇻",
-  Canada: "🇨🇦",
-  Colombia: "🇨🇴",
-  "Corea del sur": "🇰🇷",
-  "Costa de Marfil": "🇨🇮",
-  Croacia: "🇭🇷",
-  Curazao: "🇨🇼",
-  "DR Congo": "🇨🇩",
-  Ecuador: "🇪🇨",
-  Egipto: "🇪🇬",
-  Escocia: "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
-  España: "🇪🇸",
-  Francia: "🇫🇷",
-  Ghana: "🇬🇭",
-  Haiti: "🇭🇹",
-  Holanda: "🇳🇱",
-  Inglaterra: "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-  Iran: "🇮🇷",
-  Iraq: "🇮🇶",
-  Japón: "🇯🇵",
-  Jordania: "🇯🇴",
-  Marruecos: "🇲🇦",
-  Mexico: "🇲🇽",
-  Noruega: "🇳🇴",
-  "Nueva Zelanda": "🇳🇿",
-  Panama: "🇵🇦",
-  Paraguay: "🇵🇾",
-  Portugal: "🇵🇹",
-  Qatar: "🇶🇦",
-  "Republica Checa": "🇨🇿",
-  Senegal: "🇸🇳",
-  Sudafrica: "🇿🇦",
-  Suecia: "🇸🇪",
-  Suiza: "🇨🇭",
-  Tunez: "🇹🇳",
-  Turquia: "🇹🇷",
-  USA: "🇺🇸",
-  Uruguay: "🇺🇾",
-  Uzbekistan: "🇺🇿",
+  Alemania: "\u{1F1E9}\u{1F1EA}",
+  "Arabia Saudita": "\u{1F1F8}\u{1F1E6}",
+  Argelia: "\u{1F1E9}\u{1F1FF}",
+  Argentina: "\u{1F1E6}\u{1F1F7}",
+  Australia: "\u{1F1E6}\u{1F1FA}",
+  Austria: "\u{1F1E6}\u{1F1F9}",
+  Bosnia: "\u{1F1E7}\u{1F1E6}",
+  Brasil: "\u{1F1E7}\u{1F1F7}",
+  Belgica: "\u{1F1E7}\u{1F1EA}",
+  "BÃ©lgica": "\u{1F1E7}\u{1F1EA}",
+  "Cabo Verde": "\u{1F1E8}\u{1F1FB}",
+  Canada: "\u{1F1E8}\u{1F1E6}",
+  Colombia: "\u{1F1E8}\u{1F1F4}",
+  "Corea del sur": "\u{1F1F0}\u{1F1F7}",
+  "Costa de Marfil": "\u{1F1E8}\u{1F1EE}",
+  Croacia: "\u{1F1ED}\u{1F1F7}",
+  Curazao: "\u{1F1E8}\u{1F1FC}",
+  "DR Congo": "\u{1F1E8}\u{1F1E9}",
+  Ecuador: "\u{1F1EA}\u{1F1E8}",
+  Egipto: "\u{1F1EA}\u{1F1EC}",
+  Escocia: "\u{1F3F4}",
+  Espana: "\u{1F1EA}\u{1F1F8}",
+  "EspaÃ±a": "\u{1F1EA}\u{1F1F8}",
+  Francia: "\u{1F1EB}\u{1F1F7}",
+  Ghana: "\u{1F1EC}\u{1F1ED}",
+  Haiti: "\u{1F1ED}\u{1F1F9}",
+  Holanda: "\u{1F1F3}\u{1F1F1}",
+  Inglaterra: "\u{1F3F4}",
+  Iran: "\u{1F1EE}\u{1F1F7}",
+  Iraq: "\u{1F1EE}\u{1F1F6}",
+  Japon: "\u{1F1EF}\u{1F1F5}",
+  "JapÃ³n": "\u{1F1EF}\u{1F1F5}",
+  Jordania: "\u{1F1EF}\u{1F1F4}",
+  Marruecos: "\u{1F1F2}\u{1F1E6}",
+  Mexico: "\u{1F1F2}\u{1F1FD}",
+  Noruega: "\u{1F1F3}\u{1F1F4}",
+  "Nueva Zelanda": "\u{1F1F3}\u{1F1FF}",
+  Panama: "\u{1F1F5}\u{1F1E6}",
+  Paraguay: "\u{1F1F5}\u{1F1FE}",
+  Portugal: "\u{1F1F5}\u{1F1F9}",
+  Qatar: "\u{1F1F6}\u{1F1E6}",
+  "Republica Checa": "\u{1F1E8}\u{1F1FF}",
+  Senegal: "\u{1F1F8}\u{1F1F3}",
+  Sudafrica: "\u{1F1FF}\u{1F1E6}",
+  Suecia: "\u{1F1F8}\u{1F1EA}",
+  Suiza: "\u{1F1E8}\u{1F1ED}",
+  Tunez: "\u{1F1F9}\u{1F1F3}",
+  Turquia: "\u{1F1F9}\u{1F1F7}",
+  USA: "\u{1F1FA}\u{1F1F8}",
+  Uruguay: "\u{1F1FA}\u{1F1FE}",
+  Uzbekistan: "\u{1F1FA}\u{1F1FF}",
 };
 
-function getDeviceId() {
-  let id = localStorage.getItem(deviceKey);
-  if (!id) {
-    const randomPart =
-      window.crypto?.randomUUID?.() ||
-      `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    id = `device_${randomPart}`;
-    localStorage.setItem(deviceKey, id);
-  }
-  return id;
-}
-
 function html(strings, ...values) {
-  return strings
-    .map((chunk, index) => `${chunk}${values[index] ?? ""}`)
-    .join("");
+  return strings.map((chunk, index) => `${chunk}${values[index] ?? ""}`).join("");
 }
 
 function escapeHtml(value) {
@@ -102,14 +93,10 @@ function validateFullName(value) {
   const parts = fullName.split(" ").filter(Boolean);
   const validNamePart = /^\p{L}+(?:['-]\p{L}+)*$/u;
 
-  if (parts.length < 2) {
-    return { valid: false, error: "Ingresa nombre y apellido." };
-  }
-
+  if (parts.length < 2) return { valid: false, error: "Ingresa nombre y apellido." };
   if (!parts.every((part) => validNamePart.test(part))) {
     return { valid: false, error: "El nombre solo puede tener letras, espacios, guiones o apostrofes." };
   }
-
   return { valid: true, fullName };
 }
 
@@ -120,6 +107,7 @@ function formatDate(value) {
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "America/Argentina/Buenos_Aires",
   }).format(new Date(value));
 }
 
@@ -137,6 +125,27 @@ function api(path, options = {}) {
   });
 }
 
+function getParticipantId() {
+  return localStorage.getItem(participantKey) || "";
+}
+
+function setParticipant(participant) {
+  localStorage.setItem(participantKey, participant.id);
+}
+
+function clearParticipant() {
+  localStorage.removeItem(participantKey);
+  bootstrap = { ...bootstrap, participant: null, predictions: [] };
+}
+
+function getSelectedPhase() {
+  return localStorage.getItem(selectedPhaseKey) || activeDefaultPhase;
+}
+
+function setSelectedPhase(phase) {
+  localStorage.setItem(selectedPhaseKey, phase);
+}
+
 function setActiveNav() {
   document.querySelectorAll("[data-nav]").forEach((item) => {
     const key = item.dataset.nav;
@@ -149,32 +158,71 @@ function setActiveNav() {
   });
 }
 
-async function loadBootstrap() {
-  bootstrap = await api(`/api/bootstrap?deviceId=${encodeURIComponent(getDeviceId())}`);
+async function loadBootstrap(phase = getSelectedPhase()) {
+  const params = new URLSearchParams({ phase });
+  const participantId = getParticipantId();
+  if (participantId) params.set("participantId", participantId);
+  bootstrap = await api(`/api/bootstrap?${params.toString()}`);
+  if (!bootstrap.phases.some((item) => item.id === phase)) {
+    setSelectedPhase(bootstrap.activePhase);
+  }
 }
 
 function groupFixtures(fixtures) {
   return fixtures.reduce((acc, match) => {
-    const key = `Grupo ${match.group}`;
+    const key = match.phase === "group" ? `Grupo ${match.group}` : match.group;
     if (!acc[key]) acc[key] = [];
     acc[key].push(match);
     return acc;
   }, {});
 }
 
+function phaseTabs(state, compact = false) {
+  return html`
+    <div class="phase-tabs" role="tablist" aria-label="Etapas">
+      ${state.phases
+        .map(
+          (phase) => html`
+            <button
+              class="phase-tab ${phase.selected ? "active" : ""}"
+              type="button"
+              data-phase="${phase.id}"
+              role="tab"
+              aria-selected="${phase.selected ? "true" : "false"}"
+            >
+              <span>${escapeHtml(phase.label)}</span>
+              ${phase.active && !compact ? `<small>Activa</small>` : ""}
+            </button>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function bindPhaseTabs(afterSwitch) {
+  document.querySelectorAll("[data-phase]").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      const phase = event.currentTarget.dataset.phase;
+      setSelectedPhase(phase);
+      await loadBootstrap(phase);
+      afterSwitch();
+    });
+  });
+}
+
 function renderPublic() {
-  const participant = bootstrap.participant;
   if (tableRoute) {
     renderLeaderboardPage();
     return;
   }
 
-  if (!participant) {
-    renderRegister();
+  if (!bootstrap.participant) {
+    renderLogin();
     return;
   }
 
-  if (participant.submittedAt) {
+  if (bootstrap.phase === "group") {
     renderSubmitted();
     return;
   }
@@ -182,32 +230,31 @@ function renderPublic() {
   renderPredictionForm();
 }
 
-function renderRegister() {
+function renderLogin() {
   app.innerHTML = html`
     <section class="grid">
       <div class="panel">
         <div class="section-head">
           <div>
-            <h2>Ingresar participante</h2>
-            <p>Una vez que envies tus predicciones, quedan cerradas para este dispositivo.</p>
+            <h2>Entrar al prode</h2>
+            <p>Usa el mismo nombre y apellido con el que jugaste la fase de grupos.</p>
           </div>
         </div>
-        ${bootstrap.locked
-          ? `<div class="notice error">El prode ya esta bloqueado desde el inicio del Mundial.</div>`
-          : ""}
-        <form id="register-form">
+        ${phaseTabs(bootstrap)}
+        <form id="login-form">
           <div class="field">
             <label for="fullName">Nombre y apellido</label>
             <input id="fullName" name="fullName" autocomplete="name" autocapitalize="words" required maxlength="80" />
           </div>
-          <button class="btn" type="submit" ${bootstrap.locked ? "disabled" : ""}>Entrar</button>
+          <button class="btn" type="submit">Entrar</button>
         </form>
       </div>
       ${leaderboardAside()}
     </section>
   `;
 
-  document.querySelector("#register-form")?.addEventListener("submit", async (event) => {
+  bindPhaseTabs(renderPublic);
+  document.querySelector("#login-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const nameValidation = validateFullName(new FormData(event.currentTarget).get("fullName"));
     if (!nameValidation.valid) {
@@ -215,29 +262,34 @@ function renderRegister() {
       return;
     }
     await withButton(event.submitter, async () => {
-      const result = await api("/api/register", {
+      const result = await api("/api/login", {
         method: "POST",
-        body: JSON.stringify({ deviceId: getDeviceId(), fullName: nameValidation.fullName }),
+        body: JSON.stringify({ fullName: nameValidation.fullName, phase: bootstrap.phase }),
       });
-      bootstrap.participant = result.participant;
-      renderPredictionForm();
+      setParticipant(result.participant);
+      bootstrap = result.bootstrap;
+      renderPublic();
     });
   });
 }
 
 function renderPredictionForm() {
-  const draft = readDraft();
   const groups = groupFixtures(bootstrap.fixtures);
+  const openMatches = bootstrap.fixtures.filter((match) => !match.locked).length;
   app.innerHTML = html`
     <section class="panel">
       <div class="section-head">
         <div>
           <h2>${escapeHtml(bootstrap.participant.fullName)}</h2>
-          <p>Completa todos los resultados de fase de grupos. Bloqueo general: ${formatDate(bootstrap.lockAt)}</p>
+          <p>Dieciseisavos se guarda partido por partido hasta la hora de inicio en Argentina.</p>
         </div>
-        <span class="badge">${bootstrap.fixtures.length} partidos</span>
+        <div class="actions">
+          <span class="badge">${openMatches} abiertos</span>
+          <button class="btn secondary" type="button" id="switch-user">Cambiar</button>
+        </div>
       </div>
-      ${bootstrap.locked ? `<div class="notice error">El prode ya esta bloqueado.</div>` : ""}
+      ${phaseTabs(bootstrap)}
+      ${bootstrap.matchLimit ? `<div class="notice">Prueba activa: se muestran ${bootstrap.matchLimit} partidos.</div>` : ""}
       <form id="predictions-form">
         <div class="groups">
           ${Object.entries(groups)
@@ -245,12 +297,10 @@ function renderPredictionForm() {
               ([group, matches]) => html`
                 <section class="group-block">
                   <div class="group-title">
-                    <span>${group}</span>
+                    <span>${escapeHtml(group)}</span>
                     <span>${matches.length} partidos</span>
                   </div>
-                  ${matches
-                    .map((match) => predictionRow(match, draft[match.id]))
-                    .join("")}
+                  ${matches.map((match) => predictionRow(match)).join("")}
                 </section>
               `,
             )
@@ -260,21 +310,32 @@ function renderPredictionForm() {
           <span id="progress" class="progress"></span>
           <div class="actions">
             <button class="btn secondary" type="button" id="save-draft">Guardar borrador</button>
-            <button class="btn" type="submit" ${bootstrap.locked ? "disabled" : ""}>Enviar prode</button>
+            <button class="btn" type="submit" ${openMatches ? "" : "disabled"}>Guardar prode</button>
           </div>
         </div>
       </form>
     </section>
   `;
+  bindPhaseTabs(renderPublic);
+  bindSwitchUser();
   bindPredictionForm();
 }
 
-function predictionRow(match, draftValue) {
+function predictionValue(match) {
+  const saved = bootstrap.predictions.find((prediction) => prediction.matchId === match.id);
+  const draft = readDraft()[match.id];
+  return saved || draft || null;
+}
+
+function predictionRow(match) {
+  const value = predictionValue(match);
+  const locked = match.locked;
   return html`
-    <article class="match-row ${hasArgentina(match) ? "argentina-match" : ""}">
+    <article class="match-row ${hasArgentina(match) ? "argentina-match" : ""} ${locked ? "locked-match" : ""}">
       <div class="match-meta">
         <strong>${formatDate(match.date)}</strong><br />
         ${escapeHtml(match.venue)}
+        ${locked ? `<span class="lock-label">Bloqueado</span>` : ""}
       </div>
       <div class="match-teams">
         <span class="team">${teamLabel(match.home)}</span>
@@ -286,8 +347,8 @@ function predictionRow(match, draftValue) {
           inputmode="numeric"
           aria-label="Goles ${escapeHtml(match.home)}"
           data-home="${match.id}"
-          value="${draftValue?.homeGoals ?? ""}"
-          required
+          value="${value?.homeGoals ?? ""}"
+          ${locked ? "disabled" : "required"}
         />
         <span class="dash">-</span>
         <input
@@ -298,8 +359,8 @@ function predictionRow(match, draftValue) {
           inputmode="numeric"
           aria-label="Goles ${escapeHtml(match.away)}"
           data-away="${match.id}"
-          value="${draftValue?.awayGoals ?? ""}"
-          required
+          value="${value?.awayGoals ?? ""}"
+          ${locked ? "disabled" : "required"}
         />
         <span class="team away">${teamLabel(match.away)}</span>
       </div>
@@ -310,10 +371,11 @@ function predictionRow(match, draftValue) {
 function bindPredictionForm() {
   const form = document.querySelector("#predictions-form");
   const updateProgress = () => {
+    const openMatches = bootstrap.fixtures.filter((match) => !match.locked);
     const completed = collectPredictions(false).filter(
-      (item) => item.homeGoals !== "" && item.awayGoals !== "",
+      (item) => item.homeGoals !== "" && item.awayGoals !== "" && !item.locked,
     ).length;
-    document.querySelector("#progress").textContent = `${completed}/${bootstrap.fixtures.length} completos`;
+    document.querySelector("#progress").textContent = `${completed}/${openMatches.length} abiertos completos`;
   };
 
   form.addEventListener("input", () => {
@@ -325,20 +387,19 @@ function bindPredictionForm() {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const predictions = collectPredictions(true);
-    if (predictions.length !== bootstrap.fixtures.length) return;
-    const confirmed = window.confirm(
-      "Cuando envies el prode no vas a poder modificarlo. Confirmas el envio?",
-    );
-    if (!confirmed) return;
+    if (!predictions.length) return;
     await withButton(event.submitter, async () => {
-      const result = await api("/api/predictions", {
+      bootstrap = await api("/api/predictions", {
         method: "POST",
-        body: JSON.stringify({ deviceId: getDeviceId(), predictions }),
+        body: JSON.stringify({
+          participantId: bootstrap.participant.id,
+          phase: bootstrap.phase,
+          predictions,
+        }),
       });
       localStorage.removeItem(draftKey());
-      bootstrap.participant = result.participant;
-      bootstrap.predictions = result.predictions;
-      renderSubmitted();
+      showToast("Predicciones guardadas.", "ok");
+      renderPredictionForm();
     });
   });
   updateProgress();
@@ -352,29 +413,33 @@ function collectPredictions(validate) {
       matchId: match.id,
       homeGoals: home === "" ? "" : Number(home),
       awayGoals: away === "" ? "" : Number(away),
+      locked: match.locked,
     };
   });
 
   if (validate) {
     const invalid = values.some(
       (item) =>
-        item.homeGoals === "" ||
-        item.awayGoals === "" ||
-        !Number.isInteger(item.homeGoals) ||
-        !Number.isInteger(item.awayGoals) ||
-        item.homeGoals < 0 ||
-        item.awayGoals < 0,
+        !item.locked &&
+        (item.homeGoals === "" ||
+          item.awayGoals === "" ||
+          !Number.isInteger(item.homeGoals) ||
+          !Number.isInteger(item.awayGoals) ||
+          item.homeGoals < 0 ||
+          item.awayGoals < 0),
     );
     if (invalid) {
-      showToast("Completa todos los resultados con numeros validos.", "error");
+      showToast("Completa los partidos abiertos con numeros validos.", "error");
       return [];
     }
   }
-  return values;
+
+  if (!validate) return values;
+  return values.filter((item) => !item.locked).map(({ locked, ...prediction }) => prediction);
 }
 
 function draftKey() {
-  return `prode-2026-draft-${getDeviceId()}`;
+  return `prode-2026-draft-${bootstrap.participant?.id || "anon"}-${bootstrap.phase}`;
 }
 
 function readDraft() {
@@ -394,33 +459,49 @@ function writeDraftFromForm() {
   showToast("Borrador guardado en este dispositivo.", "ok");
 }
 
+function bindSwitchUser() {
+  document.querySelector("#switch-user")?.addEventListener("click", () => {
+    clearParticipant();
+    renderLogin();
+  });
+}
+
 function renderSubmitted() {
   const totals = bootstrap.leaderboard.find(
     (row) => row.participantId === bootstrap.participant.id,
   ) || { points: 0, exacts: 0, winners: 0, position: "-" };
+  const title = bootstrap.phase === "group" ? "Fase de grupos" : "Tus predicciones";
 
   app.innerHTML = html`
     <section class="grid">
       <div class="panel">
         <div class="section-head">
           <div>
-            <h2>Tu prode esta enviado</h2>
-            <p>${escapeHtml(bootstrap.participant.fullName)} · Enviado ${formatDate(bootstrap.participant.submittedAt)}</p>
+            <h2>${title}</h2>
+            <p>${escapeHtml(bootstrap.participant.fullName)} · ${escapeHtml(bootstrap.phaseLabel)}</p>
           </div>
-          <span class="badge">Puesto ${totals.position}</span>
+          <div class="actions">
+            <span class="badge">Puesto ${totals.position}</span>
+            <button class="btn secondary" type="button" id="switch-user">Cambiar</button>
+          </div>
         </div>
+        ${phaseTabs(bootstrap)}
         <div class="summary">
           <div class="stat"><b>${totals.points}</b><span>Puntos</span></div>
           <div class="stat"><b>${totals.exacts}</b><span>Exactos</span></div>
           <div class="stat"><b>${totals.winners}</b><span>Ganadores</span></div>
         </div>
         <div class="submitted-list">
-          ${bootstrap.predictions.map(submittedRow).join("")}
+          ${bootstrap.predictions.length
+            ? bootstrap.predictions.map(submittedRow).join("")
+            : `<div class="notice">Todavia no hay predicciones cargadas para esta etapa.</div>`}
         </div>
       </div>
       ${leaderboardAside()}
     </section>
   `;
+  bindPhaseTabs(renderPublic);
+  bindSwitchUser();
 }
 
 function submittedRow(item) {
@@ -451,15 +532,16 @@ function renderLeaderboardPage() {
       <div class="section-head">
         <div>
           <h2>Tabla de posiciones</h2>
-          <p>Ordenada por puntos y luego por cantidad de resultados exactos.</p>
-          <p>R.E = Resultados exactos acertados (4pts)</p>
-          <p>R.G = Resultados ganadores acertados (2pts)</p>
+          <p>${escapeHtml(bootstrap.phaseLabel)} · ordenada por puntos y despues por resultados exactos.</p>
+          <p>R.E = Resultados exactos (4pts) · R.G = Ganadores (2pts)</p>
         </div>
         <button class="btn secondary" id="refresh-table" type="button">Actualizar</button>
       </div>
+      ${phaseTabs(bootstrap)}
       ${leaderboardTable(bootstrap.leaderboard)}
     </section>
   `;
+  bindPhaseTabs(renderLeaderboardPage);
   document.querySelector("#refresh-table").addEventListener("click", async () => {
     await loadBootstrap();
     renderLeaderboardPage();
@@ -472,7 +554,7 @@ function leaderboardAside() {
       <div class="section-head">
         <div>
           <h2>Tabla</h2>
-          <p>${bootstrap.leaderboard.length} participantes</p>
+          <p>${escapeHtml(bootstrap.phaseLabel)} · ${bootstrap.leaderboard.length} participantes</p>
         </div>
       </div>
       ${leaderboardTable(bootstrap.leaderboard.slice(0, 10), true)}
@@ -482,7 +564,7 @@ function leaderboardAside() {
 }
 
 function leaderboardTable(rows, compact = false) {
-  if (!rows.length) return `<div class="notice">Todavia no hay predicciones enviadas.</div>`;
+  if (!rows.length) return `<div class="notice">Todavia no hay participantes para mostrar.</div>`;
   return html`
     <div class="table-wrap">
       <table>
@@ -536,7 +618,8 @@ async function renderAdmin() {
   }
 
   try {
-    adminState = await api(`/api/admin?key=${encodeURIComponent(key)}`);
+    const phase = getSelectedPhase();
+    adminState = await api(`/api/admin?key=${encodeURIComponent(key)}&phase=${encodeURIComponent(phase)}`);
   } catch (error) {
     app.innerHTML = `<section class="panel"><div class="notice error">${escapeHtml(error.message)}</div></section>`;
     return;
@@ -548,10 +631,11 @@ async function renderAdmin() {
         <div class="section-head">
           <div>
             <h2>Cargar resultados</h2>
-            <p>${adminState.participants.length} participantes · ${adminState.predictionCount} predicciones cargadas · ${adminState.storage}</p>
+            <p>${escapeHtml(adminState.phaseLabel)} · ${adminState.participants.length} participantes · ${adminState.predictionCount} predicciones · ${adminState.storage}</p>
           </div>
-          <a class="btn secondary" href="/api/admin/export.csv?key=${encodeURIComponent(key)}">Exportar CSV</a>
+          <a class="btn secondary" href="/api/admin/export.csv?key=${encodeURIComponent(key)}&phase=${encodeURIComponent(adminState.phase)}">Exportar CSV</a>
         </div>
+        ${phaseTabs(adminState)}
         <div class="admin-list">
           ${adminState.fixtures.map((match) => adminMatchRow(match, adminState.results[match.id])).join("")}
         </div>
@@ -568,13 +652,12 @@ async function renderAdmin() {
       </aside>
     </section>
   `;
+  bindPhaseTabs(renderAdmin);
   bindAdmin(key);
 }
 
 function adminParticipantsList(participants) {
-  if (!participants.length) {
-    return `<div class="notice">No hay participantes registrados.</div>`;
-  }
+  if (!participants.length) return `<div class="notice">No hay participantes registrados.</div>`;
 
   return html`
     <div class="admin-participants">
@@ -585,7 +668,7 @@ function adminParticipantsList(participants) {
             <article class="participant-admin-row">
               <div>
                 <strong>${escapeHtml(participant.fullName)}</strong>
-                <small>${participant.submittedAt ? "Prode enviado" : "Sin enviar"}</small>
+                <small>Registrado</small>
               </div>
               <button class="btn danger" type="button" data-delete-participant="${participant.id}">Borrar</button>
             </article>
@@ -601,7 +684,7 @@ function adminMatchRow(match, result) {
     <article class="admin-match ${hasArgentina(match) ? "argentina-match" : ""}" data-admin-match="${match.id}">
       <div>
         <strong>${teamLabel(match.home)} vs ${teamLabel(match.away)}</strong>
-        <small>Grupo ${match.group} · ${formatDate(match.date)} · ${escapeHtml(match.venue)}</small>
+        <small>${escapeHtml(adminState.phaseLabel)} · ${formatDate(match.date)} · ${escapeHtml(match.venue)}</small>
       </div>
       <input class="score-input" type="number" min="0" max="30" inputmode="numeric" data-admin-home value="${result?.homeGoals ?? ""}" aria-label="Goles local" />
       <span class="dash">-</span>
@@ -623,7 +706,7 @@ function bindAdmin(key) {
       await withButton(event.currentTarget, async () => {
         adminState = await api(`/api/admin/results?key=${encodeURIComponent(key)}`, {
           method: "POST",
-          body: JSON.stringify({ matchId, homeGoals, awayGoals }),
+          body: JSON.stringify({ matchId, homeGoals, awayGoals, phase: adminState.phase }),
         });
         showToast("Resultado guardado.", "ok");
         await renderAdmin();
@@ -634,7 +717,7 @@ function bindAdmin(key) {
       await withButton(event.currentTarget, async () => {
         await api(`/api/admin/results?key=${encodeURIComponent(key)}`, {
           method: "POST",
-          body: JSON.stringify({ matchId, clear: true }),
+          body: JSON.stringify({ matchId, clear: true, phase: adminState.phase }),
         });
         showToast("Resultado limpiado.", "ok");
         await renderAdmin();
@@ -646,7 +729,7 @@ function bindAdmin(key) {
     button.addEventListener("click", async (event) => {
       const participantId = event.currentTarget.dataset.deleteParticipant;
       const confirmed = window.confirm(
-        "Vas a borrar este participante y sus predicciones. Confirmas?",
+        "Vas a borrar este participante y sus predicciones de todas las etapas. Confirmas?",
       );
       if (!confirmed) return;
 
@@ -694,7 +777,7 @@ async function refreshLoop() {
   if (adminRoute) return;
   try {
     await loadBootstrap();
-    if (tableRoute || bootstrap.participant?.submittedAt) renderPublic();
+    if (tableRoute || bootstrap.participant) renderPublic();
   } catch {
     // The manual refresh path will surface network errors.
   }

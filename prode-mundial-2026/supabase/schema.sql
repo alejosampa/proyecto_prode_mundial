@@ -1,8 +1,10 @@
 create table if not exists fixtures (
   id text primary key,
+  phase text not null default 'group',
   group_name text not null,
   matchday integer not null,
   match_date timestamptz not null,
+  lock_at timestamptz,
   venue text not null,
   home_team text not null,
   away_team text not null,
@@ -33,7 +35,17 @@ create table if not exists results (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists phase_submissions (
+  participant_id text not null references participants(id) on delete cascade,
+  phase text not null,
+  submitted_at timestamptz not null default now(),
+  primary key (participant_id, phase)
+);
+
+create index if not exists fixtures_phase_display_order_idx on fixtures (phase, display_order);
+
 alter table fixtures enable row level security;
 alter table participants enable row level security;
 alter table predictions enable row level security;
 alter table results enable row level security;
+alter table phase_submissions enable row level security;

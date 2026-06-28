@@ -12,19 +12,36 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   process.exit(1);
 }
 
-const fixtures = JSON.parse(
-  await fs.readFile(path.join(ROOT, "data", "fixtures.json"), "utf8"),
-);
+async function readFixtures(file, phase, displayOffset = 0) {
+  try {
+    const fixtures = JSON.parse(await fs.readFile(path.join(ROOT, "data", file), "utf8"));
+    return fixtures.map((match, index) => ({
+      ...match,
+      phase: match.phase || phase,
+      lockAt: match.lockAt || match.date,
+      displayOrder: displayOffset + index + 1,
+    }));
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+}
 
-const rows = fixtures.map((match, index) => ({
+const groupFixtures = await readFixtures("fixtures.json", "group");
+const round32Fixtures = await readFixtures("round32-fixtures.json", "round32", groupFixtures.length);
+const fixtures = [...groupFixtures, ...round32Fixtures];
+
+const rows = fixtures.map((match) => ({
   id: match.id,
+  phase: match.phase,
   group_name: match.group,
   matchday: match.matchday,
   match_date: match.date,
+  lock_at: match.lockAt,
   venue: match.venue,
   home_team: match.home,
   away_team: match.away,
-  display_order: index + 1,
+  display_order: match.displayOrder,
 }));
 
 const response = await fetch(`${SUPABASE_URL}/rest/v1/fixtures?on_conflict=id`, {

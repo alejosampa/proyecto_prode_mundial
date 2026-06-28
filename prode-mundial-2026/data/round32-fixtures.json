@@ -1,0 +1,18 @@
+[
+  {"id":"m073","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-06-28T16:00:00-03:00","venue":"SoFi Stadium","home":"Sudafrica","away":"Canada"},
+  {"id":"m076","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-06-29T14:00:00-03:00","venue":"NRG Stadium","home":"Brasil","away":"Japon"},
+  {"id":"m074","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-06-29T17:30:00-03:00","venue":"Gillette Stadium","home":"Alemania","away":"Paraguay"},
+  {"id":"m075","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-06-29T22:00:00-03:00","venue":"Estadio BBVA","home":"Holanda","away":"Marruecos"},
+  {"id":"m078","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-06-30T14:00:00-03:00","venue":"AT&T Stadium","home":"Costa de Marfil","away":"Noruega"},
+  {"id":"m077","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-06-30T18:00:00-03:00","venue":"MetLife Stadium","home":"Francia","away":"Suecia"},
+  {"id":"m079","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-06-30T22:00:00-03:00","venue":"Estadio Azteca","home":"Mexico","away":"Ecuador"},
+  {"id":"m080","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-07-01T13:00:00-03:00","venue":"Mercedes-Benz Stadium","home":"Inglaterra","away":"DR Congo"},
+  {"id":"m082","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-07-01T17:00:00-03:00","venue":"Lumen Field","home":"Belgica","away":"Senegal"},
+  {"id":"m081","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-07-01T21:00:00-03:00","venue":"Levi's Stadium","home":"USA","away":"Bosnia"},
+  {"id":"m084","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-07-02T16:00:00-03:00","venue":"SoFi Stadium","home":"Espana","away":"Austria"},
+  {"id":"m083","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-07-02T20:00:00-03:00","venue":"BMO Field","home":"Portugal","away":"Croacia"},
+  {"id":"m085","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-07-03T00:00:00-03:00","venue":"BC Place","home":"Suiza","away":"Argelia"},
+  {"id":"m088","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-07-03T15:00:00-03:00","venue":"AT&T Stadium","home":"Australia","away":"Egipto"},
+  {"id":"m086","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-07-03T19:00:00-03:00","venue":"Hard Rock Stadium","home":"Argentina","away":"Cabo Verde"},
+  {"id":"m087","phase":"round32","group":"Dieciseisavos","matchday":1,"date":"2026-07-03T22:30:00-03:00","venue":"Arrowhead Stadium","home":"Colombia","away":"Ghana"}
+]
