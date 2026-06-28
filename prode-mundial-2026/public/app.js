@@ -246,7 +246,7 @@ function renderLogin() {
         <div class="section-head">
           <div>
             <h2>Entrar al prode</h2>
-            <p>Registrate con nombre y apellido para jugar dieciseisavos.</p>
+            <p>Registrate con nombre y apellido para jugar dieciseisavos. Se pronostica el resultado de los 90 minutos.</p>
           </div>
         </div>
         ${phaseTabs(bootstrap)}
@@ -294,7 +294,7 @@ function renderPredictionForm() {
       <div class="section-head">
         <div>
           <h2>${escapeHtml(bootstrap.participant.fullName)}</h2>
-          <p>Dieciseisavos se guarda partido por partido hasta la hora de inicio en Argentina.</p>
+          <p>Pronostica el resultado de los 90 minutos. No cuentan alargue ni penales.</p>
         </div>
         <div class="actions">
           <span class="badge">${openMatches} abiertos</span>
@@ -358,7 +358,7 @@ function predictionRow(match) {
           min="0"
           max="30"
           inputmode="numeric"
-          aria-label="Goles ${escapeHtml(match.home)}"
+          aria-label="Goles ${escapeHtml(match.home)} en 90 minutos"
           data-home="${match.id}"
           value="${value?.homeGoals ?? ""}"
           ${locked ? "disabled" : "required"}
@@ -370,7 +370,7 @@ function predictionRow(match) {
           min="0"
           max="30"
           inputmode="numeric"
-          aria-label="Goles ${escapeHtml(match.away)}"
+          aria-label="Goles ${escapeHtml(match.away)} en 90 minutos"
           data-away="${match.id}"
           value="${value?.awayGoals ?? ""}"
           ${locked ? "disabled" : "required"}
@@ -525,7 +525,7 @@ function submittedRow(item) {
     <article class="submitted-match ${hasArgentina(item.match) ? "argentina-match" : ""}">
       <div>
         <strong>${teamLabel(item.match.home)} ${item.homeGoals}-${item.awayGoals} ${teamLabel(item.match.away)}</strong>
-        <div class="muted">${formatDate(item.match.date)} · Real: ${result}</div>
+        <div class="muted">${formatDate(item.match.date)} · Real 90': ${result}</div>
       </div>
       <span class="badge ${item.score.status}">${scoreLabel(item.score)}</span>
     </article>
@@ -545,7 +545,7 @@ function renderLeaderboardPage() {
       <div class="section-head">
         <div>
           <h2>Tabla de posiciones</h2>
-          <p>${escapeHtml(bootstrap.phaseLabel)} · ordenada por puntos y despues por resultados exactos.</p>
+          <p>${escapeHtml(bootstrap.phaseLabel)} · cuenta el resultado de los 90 minutos.</p>
           <p>R.E = Resultados exactos (4pts) · R.G = Ganadores (2pts)</p>
         </div>
         <button class="btn secondary" id="refresh-table" type="button">Actualizar</button>
@@ -643,8 +643,8 @@ async function renderAdmin() {
       <div class="panel">
         <div class="section-head">
           <div>
-            <h2>Cargar resultados</h2>
-            <p>${escapeHtml(adminState.phaseLabel)} · ${adminState.participants.length} participantes · ${adminState.predictionCount} predicciones · ${adminState.storage}</p>
+            <h2>Cargar resultados 90'</h2>
+            <p>${escapeHtml(adminState.phaseLabel)} · cargar solo el resultado de los 90 minutos · ${adminState.participants.length} participantes · ${adminState.predictionCount} predicciones · ${adminState.storage}</p>
           </div>
           <a class="btn secondary" href="/api/admin/export.csv?key=${encodeURIComponent(key)}&phase=${encodeURIComponent(adminState.phase)}">Exportar CSV</a>
         </div>
@@ -657,7 +657,7 @@ async function renderAdmin() {
         <div class="section-head">
           <div>
             <h2>Tabla actual</h2>
-            <p>Se recalcula al guardar cada resultado.</p>
+            <p>Se recalcula al guardar cada resultado de 90 minutos.</p>
           </div>
         </div>
         ${leaderboardTable(adminState.leaderboard, true)}
@@ -699,9 +699,9 @@ function adminMatchRow(match, result) {
         <strong>${teamLabel(match.home)} vs ${teamLabel(match.away)}</strong>
         <small>${escapeHtml(adminState.phaseLabel)} · ${formatDate(match.date)} · ${escapeHtml(match.venue)}</small>
       </div>
-      <input class="score-input" type="number" min="0" max="30" inputmode="numeric" data-admin-home value="${result?.homeGoals ?? ""}" aria-label="Goles local" />
+      <input class="score-input" type="number" min="0" max="30" inputmode="numeric" data-admin-home value="${result?.homeGoals ?? ""}" aria-label="Goles local en 90 minutos" />
       <span class="dash">-</span>
-      <input class="score-input" type="number" min="0" max="30" inputmode="numeric" data-admin-away value="${result?.awayGoals ?? ""}" aria-label="Goles visitante" />
+      <input class="score-input" type="number" min="0" max="30" inputmode="numeric" data-admin-away value="${result?.awayGoals ?? ""}" aria-label="Goles visitante en 90 minutos" />
       <div class="actions">
         <button class="btn" type="button" data-save-result>Guardar</button>
         <button class="btn secondary" type="button" data-clear-result>Limpiar</button>
