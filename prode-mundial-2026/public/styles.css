@@ -369,6 +369,17 @@ input:focus {
   align-items: center;
 }
 
+.match-scoreline {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
 .team {
   display: inline-flex;
   gap: 7px;
@@ -600,6 +611,10 @@ th.number {
 
   .match-row {
     grid-template-columns: 1fr;
+  }
+
+  .match-scoreline {
+    grid-column: 1;
   }
 
   .match-teams {

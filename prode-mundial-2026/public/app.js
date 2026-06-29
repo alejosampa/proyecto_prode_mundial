@@ -37,7 +37,7 @@ const teamFlags = {
   Ghana: "\u{1F1EC}\u{1F1ED}",
   Haiti: "\u{1F1ED}\u{1F1F9}",
   Holanda: "\u{1F1F3}\u{1F1F1}",
-  Inglaterra: "\u{1F3F4}",
+  Inglaterra: "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
   Iran: "\u{1F1EE}\u{1F1F7}",
   Iraq: "\u{1F1EE}\u{1F1F6}",
   Japon: "\u{1F1EF}\u{1F1F5}",
@@ -340,9 +340,17 @@ function predictionValue(match) {
   return saved || draft || null;
 }
 
+function predictionScoreInfo(match) {
+  return bootstrap.predictions.find((prediction) => prediction.matchId === match.id) || null;
+}
+
 function predictionRow(match) {
   const value = predictionValue(match);
+  const scored = predictionScoreInfo(match);
   const locked = match.locked;
+  const result = scored?.result
+    ? `${scored.result.homeGoals}-${scored.result.awayGoals}`
+    : "Pendiente";
   return html`
     <article class="match-row ${hasArgentina(match) ? "argentina-match" : ""} ${locked ? "locked-match" : ""}">
       <div class="match-meta">
@@ -376,6 +384,10 @@ function predictionRow(match) {
           ${locked ? "disabled" : "required"}
         />
         <span class="team away">${teamLabel(match.away)}</span>
+      </div>
+      <div class="match-scoreline">
+        <span>Real 90': ${result}</span>
+        ${scored ? `<span class="badge ${scored.score.status}">${scoreLabel(scored.score)}</span>` : ""}
       </div>
     </article>
   `;
